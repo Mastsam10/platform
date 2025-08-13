@@ -7,6 +7,7 @@ interface Video {
   id: string
   title: string
   description?: string
+  status?: string
   playback_id?: string
   duration_s?: number
   published_at?: string

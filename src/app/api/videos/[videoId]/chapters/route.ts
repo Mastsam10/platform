@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { videoId: string } }
+  { params }: { params: Promise<{ videoId: string }> }
 ) {
+  const { videoId } = await params
   try {
-    const { videoId } = params
 
     if (!videoId) {
       return NextResponse.json(
