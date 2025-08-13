@@ -1,30 +1,35 @@
 # Platform - Christian Video Discovery
 
-A Next.js-based platform for discovering and sharing Christian videos with scripture-aware chapters and local church discovery.
+A Next.js-based platform for discovering and watching Christian videos with scripture-aware chapters and local church discovery.
 
-## Features (Week 1 MVP)
+## 🚀 Features
 
-- ✅ Next.js 15 with TypeScript and Tailwind CSS
-- ✅ Supabase integration for database and auth
-- ✅ Mux video integration for upload and playback
-- ✅ API routes for upload initialization and webhooks
-- ✅ Database schema for users, channels, and videos
-- ✅ Authentication components (sign up/sign in)
-- ✅ Video upload component with Mux integration
-- ✅ Video player component with HLS streaming
-- ✅ Video list component to display uploaded videos
-- ✅ Sample data and database seeding
+### Core Platform
+- ✅ **Next.js 15** with TypeScript and Tailwind CSS
+- ✅ **Supabase** integration for database and auth
+- ✅ **Mux** video integration for upload and playback
+- ✅ **Responsive design** with modern UI/UX
 
-## Features (Week 2 - In Progress)
+### Video Management
+- ✅ **Video upload** with Mux direct upload
+- ✅ **HLS streaming** for cross-platform playback
+- ✅ **Video list** with status indicators
+- ✅ **Channel management** for creators and churches
 
-- ✅ Deepgram SDK integration for transcript generation
-- ✅ Scripture chapter detection with regex patterns
-- ✅ Bible book mapping with aliases
-- ✅ Topic detection for common Christian themes
-- ✅ Chapter generation API
-- ✅ Chapter list component with clickable timestamps
-- ✅ Automatic transcript → chapter pipeline
-- ✅ Video tags storage for chapters and topics
+### Scripture Intelligence
+- ✅ **Deepgram** transcript generation
+- ✅ **Scripture detection** with regex patterns
+- ✅ **Bible book mapping** with 66 books + aliases
+- ✅ **Topic detection** for 18+ Christian themes
+- ✅ **Automatic chapters** from transcripts
+- ✅ **Clickable timestamps** for navigation
+
+### Database Schema
+- ✅ **Users** with role-based access
+- ✅ **Channels** for creators and churches
+- ✅ **Videos** with metadata and status
+- ✅ **Video tags** for passages and topics
+- ✅ **Captions** for transcript storage
 
 ## Getting Started
 
