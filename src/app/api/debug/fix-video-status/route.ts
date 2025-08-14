@@ -5,12 +5,12 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Starting video status fix...')
 
-    // Find videos that are marked as ready but don't have playback_id
+    // Find videos that are marked as ready but don't have valid playback_id
     const { data: videos, error: fetchError } = await supabaseAdmin
       .from('videos')
       .select('id, title, status, playback_id, asset_id')
       .eq('status', 'ready')
-      .is('playback_id', null)
+      .or('playback_id.is.null,playback_id.eq.PROCESSING')
 
     if (fetchError) {
       console.error('Failed to fetch videos:', fetchError)
@@ -29,12 +29,15 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Update these videos to status 'processing' since they don't have playback_id
+    // Update these videos to status 'processing' since they don't have valid playback_id
     const { error: updateError } = await supabaseAdmin
       .from('videos')
-      .update({ status: 'processing' })
+      .update({ 
+        status: 'processing',
+        playback_id: null // Clear any fake playback_id
+      })
       .eq('status', 'ready')
-      .is('playback_id', null)
+      .or('playback_id.is.null,playback_id.eq.PROCESSING')
 
     if (updateError) {
       console.error('Failed to update video status:', updateError)
@@ -49,7 +52,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: `Fixed status for ${videos.length} videos`,
       fixedVideos: videos,
-      action: 'Changed status from "ready" to "processing" for videos without playback_id'
+      action: 'Changed status from "ready" to "processing" for videos without valid playback_id'
     })
 
   } catch (error) {
