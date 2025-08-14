@@ -31,9 +31,20 @@ export async function POST(request: NextRequest) {
       const { asset_id, upload_id } = data
       console.log(`Asset created: ${asset_id} for upload: ${upload_id}`)
       
-      // For now, just log the asset creation
-      // We'll need to add upload_id column to videos table later
-      console.log(`Asset ${asset_id} created for upload ${upload_id}`)
+      // Update video status to 'processing' when asset is created
+      const { data: video, error: videoError } = await supabase
+        .from('videos')
+        .select('id')
+        .eq('asset_id', asset_id)
+        .single()
+        
+      if (video && !videoError) {
+        await supabase
+          .from('videos')
+          .update({ status: 'processing' })
+          .eq('id', video.id)
+        console.log(`Updated video ${video.id} status to 'processing'`)
+      }
     }
 
     // Handle video.asset.ready event (when video is fully processed)
@@ -119,6 +130,11 @@ export async function POST(request: NextRequest) {
       }
       
       console.log(`Video ${videoId} is ready for playback`)
+    }
+
+    // Log any other webhook events we're not handling
+    if (type !== 'video.asset.created' && type !== 'video.asset.ready') {
+      console.log(`Unhandled webhook event: ${type}`, data)
     }
 
     return NextResponse.json({ success: true })
