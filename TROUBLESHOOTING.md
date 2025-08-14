@@ -141,16 +141,28 @@ curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-test-data
 - Video has asset_id but no playback_id
 - Status remains "processing" indefinitely
 - Webhook didn't fire or failed
+- "Video not found for asset_id" errors in logs
 
 **Solution:**
-1. Check if video has asset_id
-2. If yes, manually trigger webhook processing
-3. If no, the upload may have failed
+1. Use the webhook debug endpoint to analyze correlation issues:
+   ```bash
+   curl https://platform-gamma-flax.vercel.app/api/debug/webhook-debug
+   ```
+2. Check if video has asset_id
+3. If yes, manually trigger webhook processing
+4. If no, the upload may have failed
+
+**Root Cause Analysis:**
+The webhook system now uses multiple correlation methods:
+1. **Primary**: Find video by `asset_id`
+2. **Secondary**: Find video by `upload_id` (if available in webhook)
+3. **Fallback**: Find most recent video without `asset_id`
 
 **Prevention:**
-- Monitor webhook logs
+- Monitor webhook logs for correlation failures
 - Ensure webhook endpoints are accessible
 - Verify Mux webhook configuration
+- Use the webhook debug endpoint regularly to catch issues early
 
 ## General Debugging
 
@@ -159,6 +171,9 @@ curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-test-data
 ```bash
 # Check all videos and their status
 curl https://platform-gamma-flax.vercel.app/api/debug/simple-video-check
+
+# Detailed webhook correlation analysis
+curl https://platform-gamma-flax.vercel.app/api/debug/webhook-debug
 
 # Fix video status inconsistencies
 curl -X POST https://platform-gamma-flax.vercel.app/api/debug/fix-video-status

@@ -3,8 +3,9 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function POST(request: NextRequest) {
   try {
+    const timestamp = new Date().toISOString()
     console.log('=== WEBHOOK ENDPOINT ACCESSED ===')
-    console.log('Timestamp:', new Date().toISOString())
+    console.log('Timestamp:', timestamp)
     
     // Verify webhook signature (optional but recommended)
     const signature = request.headers.get('mux-signature')
@@ -16,6 +17,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { type, data } = body
     console.log('Webhook type:', type)
+    console.log('Webhook data:', JSON.stringify(data, null, 2))
 
     // Validate webhook
     if (!type || !data) {
@@ -93,17 +95,89 @@ export async function POST(request: NextRequest) {
       const { duration, playback_id, aspect_ratio } = data
       
       console.log(`✅ HANDLED: Asset ready: ${asset_id}, duration: ${duration}, playback_id: ${playback_id}, aspect_ratio: ${aspect_ratio}`)
-      console.log('Full data object:', JSON.stringify(data, null, 2))
       
-      // Find video by asset_id
-      const { data: video, error: videoError } = await supabaseAdmin
+      // Try multiple correlation methods to find the video
+      let video = null
+      let videoError = null
+      
+      // Method 1: Try to find by asset_id first
+      console.log(`🔍 Attempting to find video by asset_id: ${asset_id}`)
+      const { data: videoByAsset, error: errorByAsset } = await supabaseAdmin
         .from('videos')
-        .select('id')
+        .select('id, title, upload_id')
         .eq('asset_id', asset_id)
         .single()
+      
+      if (videoByAsset && !errorByAsset) {
+        video = videoByAsset
+        console.log(`✅ Found video by asset_id: ${video.id} (${video.title})`)
+      } else {
+        console.log(`❌ No video found by asset_id: ${asset_id}`)
         
-      if (videoError || !video) {
-        console.error('Video not found for asset_id:', asset_id)
+        // Method 2: Try to find by upload_id if available in webhook data
+        if (data.upload_id) {
+          console.log(`🔍 Attempting to find video by upload_id: ${data.upload_id}`)
+          const { data: videoByUpload, error: errorByUpload } = await supabaseAdmin
+            .from('videos')
+            .select('id, title, asset_id')
+            .eq('upload_id', data.upload_id)
+            .single()
+          
+          if (videoByUpload && !errorByUpload) {
+            video = videoByUpload
+            console.log(`✅ Found video by upload_id: ${video.id} (${video.title})`)
+            
+            // Update the asset_id if it was missing
+            if (!video.asset_id) {
+              console.log(`🔄 Updating video ${video.id} with asset_id: ${asset_id}`)
+              await supabaseAdmin
+                .from('videos')
+                .update({ asset_id })
+                .eq('id', video.id)
+            }
+          } else {
+            console.log(`❌ No video found by upload_id: ${data.upload_id}`)
+          }
+        }
+        
+        // Method 3: Try to find any video without asset_id (fallback)
+        if (!video) {
+          console.log(`🔍 Attempting to find video without asset_id (fallback)`)
+          const { data: videoWithoutAsset, error: errorWithoutAsset } = await supabaseAdmin
+            .from('videos')
+            .select('id, title, upload_id')
+            .is('asset_id', null)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
+          
+          if (videoWithoutAsset && !errorWithoutAsset) {
+            video = videoWithoutAsset
+            console.log(`⚠️ Found video without asset_id (fallback): ${video.id} (${video.title})`)
+            console.log(`🔄 Updating video ${video.id} with asset_id: ${asset_id}`)
+            
+            // Update with the asset_id
+            await supabaseAdmin
+              .from('videos')
+              .update({ asset_id })
+              .eq('id', video.id)
+          } else {
+            console.log(`❌ No video found without asset_id`)
+          }
+        }
+      }
+      
+      if (!video) {
+        console.error('❌ Video not found for asset_id:', asset_id)
+        console.error('Available videos in database:')
+        const { data: allVideos } = await supabaseAdmin
+          .from('videos')
+          .select('id, title, asset_id, upload_id, status')
+        
+        allVideos?.forEach(v => {
+          console.error(`  - ${v.id}: "${v.title}" (asset_id: ${v.asset_id}, upload_id: ${v.upload_id}, status: ${v.status})`)
+        })
+        
         return NextResponse.json(
           { error: 'Video not found' },
           { status: 404 }
