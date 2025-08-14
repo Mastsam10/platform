@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
           
         if (!video && !videoError) {
           // If not found by asset_id, try to find videos with null asset_id and update them
+          console.log(`Looking for videos with null asset_id and draft status...`)
           const { data: videosToUpdate, error: updateError } = await supabase
             .from('videos')
             .select('id')
@@ -61,8 +62,12 @@ export async function POST(request: NextRequest) {
             .eq('status', 'draft')
             .limit(1)
           
+          console.log(`Found ${videosToUpdate?.length || 0} videos to update:`, videosToUpdate)
+          
           if (videosToUpdate && videosToUpdate.length > 0) {
             const videoToUpdate = videosToUpdate[0]
+            console.log(`Updating video ${videoToUpdate.id} with asset_id: ${asset_id}`)
+            
             const { error: updateAssetError } = await supabase
               .from('videos')
               .update({ 
@@ -72,8 +77,12 @@ export async function POST(request: NextRequest) {
               .eq('id', videoToUpdate.id)
             
             if (!updateAssetError) {
-              console.log(`Updated video ${videoToUpdate.id} with asset_id: ${asset_id} and status: processing`)
+              console.log(`✅ Successfully updated video ${videoToUpdate.id} with asset_id: ${asset_id} and status: processing`)
+            } else {
+              console.error(`❌ Failed to update video ${videoToUpdate.id}:`, updateAssetError)
             }
+          } else {
+            console.log(`❌ No videos found with null asset_id and draft status`)
           }
         } else if (video && !videoError) {
           await supabase
