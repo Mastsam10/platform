@@ -43,67 +43,21 @@ export async function POST(request: NextRequest) {
       const { asset_id, id: upload_id } = data
       console.log(`✅ HANDLED: Asset created from upload: ${asset_id} for upload: ${upload_id}`)
 
-      if (asset_id) {
-        // Prefer correlating by upload_id if available
-        if (upload_id) {
-          const { data: updatedByUpload, error: updateByUploadError } = await supabaseAdmin
-            .from('videos')
-            .update({ asset_id, status: 'processing' })
-            .eq('upload_id', upload_id)
-            .select('id')
-            .maybeSingle()
-
-          if (updateByUploadError) {
-            console.error('❌ Failed updating by upload_id:', updateByUploadError)
-          } else if (updatedByUpload) {
-            console.log(`✅ Updated video ${updatedByUpload.id} via upload_id with asset_id: ${asset_id}`)
-            return NextResponse.json({ success: true })
-          } else {
-            console.log('No video matched upload_id; falling back to asset_id/null-asset search')
-          }
-        }
-
-        // Fallback 1: update any row already having this asset_id
-        const { data: videoByAsset, error: videoByAssetErr } = await supabaseAdmin
+      if (asset_id && upload_id) {
+        // Update video by upload_id (most reliable correlation)
+        const { data: updatedVideo, error: updateError } = await supabaseAdmin
           .from('videos')
+          .update({ asset_id, status: 'processing' })
+          .eq('upload_id', upload_id)
           .select('id')
-          .eq('asset_id', asset_id)
           .maybeSingle()
 
-        if (videoByAsset && !videoByAssetErr) {
-          await supabaseAdmin
-            .from('videos')
-            .update({ status: 'processing' })
-            .eq('id', videoByAsset.id)
-          console.log(`Updated video ${videoByAsset.id} status to 'processing' (by asset_id)`)
-          return NextResponse.json({ success: true })
-        }
-
-        // Fallback 2: find latest draft with null asset_id and set it
-        console.log('Looking for latest draft with null asset_id...')
-        const { data: drafts, error: draftsErr } = await supabaseAdmin
-          .from('videos')
-          .select('id')
-          .is('asset_id', null)
-          .eq('status', 'draft')
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        if (draftsErr) {
-          console.error('❌ Failed to query drafts:', draftsErr)
-        } else if (drafts && drafts.length > 0) {
-          const target = drafts[0]
-          const { error: updateErr } = await supabaseAdmin
-            .from('videos')
-            .update({ asset_id, status: 'processing' })
-            .eq('id', target.id)
-          if (updateErr) {
-            console.error('❌ Failed to assign asset_id to draft:', updateErr)
-          } else {
-            console.log(`✅ Successfully updated draft ${target.id} with asset_id: ${asset_id}`)
-          }
+        if (updateError) {
+          console.error('❌ Failed updating by upload_id:', updateError)
+        } else if (updatedVideo) {
+          console.log(`✅ Updated video ${updatedVideo.id} via upload_id with asset_id: ${asset_id}`)
         } else {
-          console.log('❌ No drafts with null asset_id found')
+          console.log('❌ No video found with upload_id:', upload_id)
         }
       }
     }
@@ -137,34 +91,15 @@ export async function POST(request: NextRequest) {
       
       console.log(`✅ HANDLED: Asset ready: ${asset_id}, duration: ${duration}, playback_id: ${playback_id}`)
       
-      // Find video by asset_id with retry logic for timing issues
-      let video = null
-      let videoError = null
-      
-      // Try up to 3 times with 1 second delay between attempts
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        const { data: videoData, error: errorData } = await supabase
-          .from('videos')
-          .select('id')
-          .eq('asset_id', asset_id)
-          .single()
-        
-        video = videoData
-        videoError = errorData
-        
-        if (video && !videoError) {
-          console.log(`Found video on attempt ${attempt}: ${video.id}`)
-          break
-        }
-        
-        if (attempt < 3) {
-          console.log(`Video not found on attempt ${attempt}, retrying in 1 second...`)
-          await new Promise(resolve => setTimeout(resolve, 1000))
-        }
-      }
+      // Find video by asset_id
+      const { data: video, error: videoError } = await supabaseAdmin
+        .from('videos')
+        .select('id')
+        .eq('asset_id', asset_id)
+        .single()
         
       if (videoError || !video) {
-        console.error('Video not found for asset_id after 3 attempts:', asset_id)
+        console.error('Video not found for asset_id:', asset_id)
         return NextResponse.json(
           { error: 'Video not found' },
           { status: 404 }
