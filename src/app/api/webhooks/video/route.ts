@@ -3,7 +3,10 @@ import { supabase } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Webhook endpoint accessed at:', new Date().toISOString())
+    console.log('=== WEBHOOK ENDPOINT ACCESSED ===')
+    console.log('Timestamp:', new Date().toISOString())
+    console.log('User-Agent:', request.headers.get('user-agent'))
+    console.log('Content-Type:', request.headers.get('content-type'))
     
     // Verify webhook signature (optional but recommended)
     const signature = request.headers.get('mux-signature')
