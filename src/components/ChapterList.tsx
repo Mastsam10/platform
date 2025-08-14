@@ -56,10 +56,10 @@ export default function ChapterList({ videoId, onChapterClick, className = '' }:
   if (loading) {
     return (
       <div className={`p-4 ${className}`}>
-        <h3 className="text-lg font-semibold mb-3">Chapters</h3>
+        <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Chapters</h3>
         <div className="animate-pulse space-y-2">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-8 bg-gray-200 rounded"></div>
+            <div key={i} className="h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
           ))}
         </div>
       </div>
@@ -69,8 +69,8 @@ export default function ChapterList({ videoId, onChapterClick, className = '' }:
   if (error) {
     return (
       <div className={`p-4 ${className}`}>
-        <h3 className="text-lg font-semibold mb-3">Chapters</h3>
-        <p className="text-red-600 text-sm">Error: {error}</p>
+        <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Chapters</h3>
+        <p className="text-red-600 dark:text-red-400 text-sm">Error: {error}</p>
       </div>
     )
   }
@@ -78,37 +78,36 @@ export default function ChapterList({ videoId, onChapterClick, className = '' }:
   if (chapters.length === 0) {
     return (
       <div className={`p-4 ${className}`}>
-        <h3 className="text-lg font-semibold mb-3">Chapters</h3>
-        <p className="text-gray-500 text-sm">No chapters available</p>
+        <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Chapters</h3>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">No chapters available</p>
       </div>
     )
   }
 
   return (
     <div className={`p-4 ${className}`}>
-      <h3 className="text-lg font-semibold mb-3">Chapters</h3>
+      <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Chapters</h3>
       <div className="space-y-2">
         {chapters.map((chapter) => (
           <button
             key={chapter.id}
             onClick={() => handleChapterClick(chapter.start_s)}
-            className="w-full text-left p-2 rounded hover:bg-gray-100 transition-colors"
+            className="w-full text-left p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <span className={`px-2 py-1 text-xs rounded ${
                   chapter.type === 'passage' 
-                    ? 'bg-blue-100 text-blue-800' 
-                    : 'bg-green-100 text-green-800'
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                    : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                 }`}>
                   {chapter.type === 'passage' ? '📖' : '🏷️'}
                 </span>
-                <span className="text-sm font-medium">{chapter.title}</span>
+                <span className="text-gray-900 dark:text-white font-medium">{chapter.title}</span>
               </div>
-              <span className="text-xs text-gray-500">
-                {formatTime(chapter.start_s)}
-              </span>
+              <span className="text-gray-500 dark:text-gray-400 text-sm">{formatTime(chapter.start_s)}</span>
             </div>
+            <div className="text-gray-600 dark:text-gray-300 text-sm mt-1">{chapter.value}</div>
           </button>
         ))}
       </div>

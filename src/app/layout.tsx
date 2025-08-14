@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import { DarkModeProvider } from '@/lib/darkMode'
+import DarkModeToggle from '@/components/DarkModeToggle'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -17,9 +19,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning={true}>
       <body className={inter.className} suppressHydrationWarning={true}>
-        <div className="min-h-screen bg-gray-50">
-          {children}
-        </div>
+        <DarkModeProvider>
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+            <DarkModeToggle />
+            {children}
+          </div>
+        </DarkModeProvider>
       </body>
     </html>
   )
