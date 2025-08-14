@@ -90,9 +90,9 @@ export async function POST(request: NextRequest) {
       console.log('🎉 VIDEO.ASSET.READY WEBHOOK RECEIVED!')
       // The asset_id is in the 'id' field for ready events
       const asset_id = data.id
-      const { duration, playback_id } = data
+      const { duration, playback_id, aspect_ratio } = data
       
-      console.log(`✅ HANDLED: Asset ready: ${asset_id}, duration: ${duration}, playback_id: ${playback_id}`)
+      console.log(`✅ HANDLED: Asset ready: ${asset_id}, duration: ${duration}, playback_id: ${playback_id}, aspect_ratio: ${aspect_ratio}`)
       console.log('Full data object:', JSON.stringify(data, null, 2))
       
       // Find video by asset_id
@@ -112,6 +112,9 @@ export async function POST(request: NextRequest) {
       
       const videoId = video.id
 
+      // Convert Mux aspect ratio format (e.g., "9:16", "16:9") to our format (e.g., "9/16", "16/9")
+      const formattedAspectRatio = aspect_ratio ? aspect_ratio.replace(':', '/') : '16/9'
+
       // Update video record with playback information
       const { error } = await supabaseAdmin
         .from('videos')
@@ -119,7 +122,7 @@ export async function POST(request: NextRequest) {
           status: 'ready',
           playback_id,
           duration_s: Math.round(parseFloat(duration)), // Convert string to integer
-          aspect_ratio: '9/16' // Default for now, can be made dynamic later
+          aspect_ratio: formattedAspectRatio // Use actual aspect ratio from Mux
         })
         .eq('id', videoId)
 
