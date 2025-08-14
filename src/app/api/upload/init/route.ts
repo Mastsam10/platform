@@ -86,7 +86,8 @@ export async function POST(request: NextRequest) {
         title,
         description,
         status: 'draft',
-        asset_id: upload.asset_id || null // Handle undefined asset_id
+        asset_id: upload.asset_id || null, // Handle undefined asset_id
+        upload_id: upload.id
       })
       .select()
       .single()

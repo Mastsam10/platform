@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,56 +40,70 @@ export async function POST(request: NextRequest) {
 
     // Handle video.upload.asset_created event (when asset is created from upload)
     if (type === 'video.upload.asset_created') {
-      const { asset_id, upload_id } = data
+      const { asset_id, id: upload_id } = data
       console.log(`✅ HANDLED: Asset created from upload: ${asset_id} for upload: ${upload_id}`)
-      
-      // Find video by asset_id or update videos with null asset_id
+
       if (asset_id) {
-        // First try to find by asset_id
-        let { data: video, error: videoError } = await supabase
+        // Prefer correlating by upload_id if available
+        if (upload_id) {
+          const { data: updatedByUpload, error: updateByUploadError } = await supabaseAdmin
+            .from('videos')
+            .update({ asset_id, status: 'processing' })
+            .eq('upload_id', upload_id)
+            .select('id')
+            .maybeSingle()
+
+          if (updateByUploadError) {
+            console.error('❌ Failed updating by upload_id:', updateByUploadError)
+          } else if (updatedByUpload) {
+            console.log(`✅ Updated video ${updatedByUpload.id} via upload_id with asset_id: ${asset_id}`)
+            return NextResponse.json({ success: true })
+          } else {
+            console.log('No video matched upload_id; falling back to asset_id/null-asset search')
+          }
+        }
+
+        // Fallback 1: update any row already having this asset_id
+        const { data: videoByAsset, error: videoByAssetErr } = await supabaseAdmin
           .from('videos')
           .select('id')
           .eq('asset_id', asset_id)
-          .single()
-          
-        if (!video && !videoError) {
-          // If not found by asset_id, try to find videos with null asset_id and update them
-          console.log(`Looking for videos with null asset_id and draft status...`)
-          const { data: videosToUpdate, error: updateError } = await supabase
-            .from('videos')
-            .select('id')
-            .is('asset_id', null)
-            .eq('status', 'draft')
-            .limit(1)
-          
-          console.log(`Found ${videosToUpdate?.length || 0} videos to update:`, videosToUpdate)
-          
-          if (videosToUpdate && videosToUpdate.length > 0) {
-            const videoToUpdate = videosToUpdate[0]
-            console.log(`Updating video ${videoToUpdate.id} with asset_id: ${asset_id}`)
-            
-            const { error: updateAssetError } = await supabase
-              .from('videos')
-              .update({ 
-                asset_id: asset_id,
-                status: 'processing'
-              })
-              .eq('id', videoToUpdate.id)
-            
-            if (!updateAssetError) {
-              console.log(`✅ Successfully updated video ${videoToUpdate.id} with asset_id: ${asset_id} and status: processing`)
-            } else {
-              console.error(`❌ Failed to update video ${videoToUpdate.id}:`, updateAssetError)
-            }
-          } else {
-            console.log(`❌ No videos found with null asset_id and draft status`)
-          }
-        } else if (video && !videoError) {
-          await supabase
+          .maybeSingle()
+
+        if (videoByAsset && !videoByAssetErr) {
+          await supabaseAdmin
             .from('videos')
             .update({ status: 'processing' })
-            .eq('id', video.id)
-          console.log(`Updated video ${video.id} status to 'processing'`)
+            .eq('id', videoByAsset.id)
+          console.log(`Updated video ${videoByAsset.id} status to 'processing' (by asset_id)`)
+          return NextResponse.json({ success: true })
+        }
+
+        // Fallback 2: find latest draft with null asset_id and set it
+        console.log('Looking for latest draft with null asset_id...')
+        const { data: drafts, error: draftsErr } = await supabaseAdmin
+          .from('videos')
+          .select('id')
+          .is('asset_id', null)
+          .eq('status', 'draft')
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (draftsErr) {
+          console.error('❌ Failed to query drafts:', draftsErr)
+        } else if (drafts && drafts.length > 0) {
+          const target = drafts[0]
+          const { error: updateErr } = await supabaseAdmin
+            .from('videos')
+            .update({ asset_id, status: 'processing' })
+            .eq('id', target.id)
+          if (updateErr) {
+            console.error('❌ Failed to assign asset_id to draft:', updateErr)
+          } else {
+            console.log(`✅ Successfully updated draft ${target.id} with asset_id: ${asset_id}`)
+          }
+        } else {
+          console.log('❌ No drafts with null asset_id found')
         }
       }
     }
@@ -100,7 +114,7 @@ export async function POST(request: NextRequest) {
       console.log(`Asset created: ${asset_id}`)
       
       // Find video by asset_id
-      const { data: video, error: videoError } = await supabase
+      const { data: video, error: videoError } = await supabaseAdmin
         .from('videos')
         .select('id')
         .eq('asset_id', asset_id)
@@ -160,7 +174,7 @@ export async function POST(request: NextRequest) {
       const videoId = video.id
 
       // Update video record with playback information
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('videos')
         .update({
           status: 'ready',
