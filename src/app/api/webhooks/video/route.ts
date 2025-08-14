@@ -26,30 +26,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Handle video.asset.created event (when asset is created but not ready)
-    if (type === 'video.asset.created') {
+    // Handle video.upload.asset_created event (when asset is created from upload)
+    if (type === 'video.upload.asset_created') {
       const { asset_id, upload_id } = data
-      console.log(`Asset created: ${asset_id} for upload: ${upload_id}`)
+      console.log(`Asset created from upload: ${asset_id} for upload: ${upload_id}`)
       
-      // Update video status to 'processing' when asset is created
-      const { data: video, error: videoError } = await supabase
-        .from('videos')
-        .select('id')
-        .eq('asset_id', asset_id)
-        .single()
-        
-      if (video && !videoError) {
-        await supabase
+      // Find video by upload_id (we need to store upload_id in videos table)
+      // For now, we'll find by asset_id if it exists
+      if (asset_id) {
+        const { data: video, error: videoError } = await supabase
           .from('videos')
-          .update({ status: 'processing' })
-          .eq('id', video.id)
-        console.log(`Updated video ${video.id} status to 'processing'`)
+          .select('id')
+          .eq('asset_id', asset_id)
+          .single()
+          
+        if (video && !videoError) {
+          await supabase
+            .from('videos')
+            .update({ status: 'processing' })
+            .eq('id', video.id)
+          console.log(`Updated video ${video.id} status to 'processing'`)
+        }
       }
     }
 
     // Handle video.asset.ready event (when video is fully processed)
     if (type === 'video.asset.ready') {
-      const { asset_id, duration, playback_id } = data
+      // The asset_id is in the 'id' field for ready events
+      const asset_id = data.id
+      const { duration, playback_id } = data
+      
+      console.log(`Asset ready: ${asset_id}, duration: ${duration}, playback_id: ${playback_id}`)
       
       // Find video by asset_id since we don't have videoId in webhook
       const { data: video, error: videoError } = await supabase
