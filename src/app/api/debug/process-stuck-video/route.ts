@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Try to get the playback_id from Mux using the Video API
     try {
-      const asset = await Video.Assets.get(video.asset_id)
+      const asset = await Video.assets.get(video.asset_id)
       console.log('Mux asset:', asset)
       
       if (asset && asset.playback_ids && asset.playback_ids.length > 0) {
