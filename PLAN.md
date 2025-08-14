@@ -1,11 +1,18 @@
 1) Product spec (v1 + v1.1)
+
+**CORE UPLOAD ARCHITECTURE - CRITICAL FOR DEVELOPMENT:**
+- **Users upload their own video files directly** (MP4, MOV, etc.) - NOT URLs from YouTube/Vimeo
+- **Direct file upload to Cloudflare Stream** - like YouTube, Vimeo, or any video platform
+- **YouTube-like user experience**: Select file → Upload → Process → Available
+- **No URL copying, no external video imports** - only direct file uploads
+
 User journeys
 Viewer: land → rails (Near You/This Sunday/By Passage) → watch → jump by chapter → tip or follow → plan a visit (map + calendar).
-Creator/Church Admin: create channel → connect Stripe → set denomination/address/service times/giving links → upload → auto-transcode → transcript → scripture chapters → publish → view analytics.
+Creator/Church Admin: create channel → connect Stripe → set denomination/address/service times/giving links → **upload video file** → auto-transcode → transcript → scripture chapters → publish → view analytics.
 Moderator (you + creator): review reports queue → age-gate/label or remove if illegal/DMCA → handle appeals.
 
 v1 features
-Upload → Mux/Cloudflare Stream ingest + HLS playback.
+**DIRECT FILE UPLOAD** → Users upload their own video files (MP4, MOV, etc.) directly to Cloudflare Stream → HLS playback.
 
 Auto transcript (Whisper/Deepgram) → scripture-aware chapters (regex + LLM fallback).
 
@@ -22,7 +29,14 @@ Not now
 Full RTMP studio, heavy recommendation engine, native apps, ad server, offline downloads, full live-chat moderation suite, auto-translation/dubbing.
 
 2) System architecture
-High-level: Next.js (SSR + RSC) ↔ API routes (/api) ↔ Supabase (Auth/Postgres/Storage) ↔ Video provider (Mux/CF Stream webhooks) ↔ Transcripts worker ↔ Chapterizer service ↔ Search indexer (Meilisearch/FTS).
+
+**UPLOAD ARCHITECTURE - TECHNICAL IMPLEMENTATION:**
+- **Frontend**: File input → FormData → Direct upload to Cloudflare Stream URL
+- **Backend**: Generate Cloudflare Stream upload URL → Return to frontend
+- **Cloudflare Stream**: Process video → Send webhook when ready
+- **Post-processing**: Transcription → Chapters → Search indexing
+
+High-level: Next.js (SSR + RSC) ↔ API routes (/api) ↔ Supabase (Auth/Postgres/Storage) ↔ Video provider (Cloudflare Stream webhooks) ↔ Transcripts worker ↔ Chapterizer service ↔ Search indexer (Meilisearch/FTS).
 
 API contracts (samples)
 POST /api/upload/init
@@ -36,7 +50,7 @@ Response
 json
 Copy
 Edit
-{ "uploadUrl":"https://upload.mux.com/...","videoId":"vid_789" }
+{ "uploadUrl":"https://api.cloudflare.com/client/v4/accounts/.../stream/.../upload","videoId":"vid_789" }
 POST /api/webhooks/video (Mux/CF)
 
 json
@@ -99,7 +113,7 @@ reports(id, object_type, object_id, reason, user_id, status enum[new,actioned,cl
 denominations(id, name, slug)
 
 Event flows
-Upload → Ready: upload init → provider webhook (ready) → transcripts/start → on success store SRT → chapters/generate → insert video_tags (passages + topics) → index to search → visible in discovery rails.
+**DIRECT FILE UPLOAD FLOW**: User selects video file → direct upload to Cloudflare Stream → webhook (ready) → transcripts/start → on success store SRT → chapters/generate → insert video_tags (passages + topics) → index to search → visible in discovery rails.
 Tip → Payout: POST /tips → Stripe intent → success → record in tips → Stripe Connect routes funds to channel account (platform fee retained).
 
 3) Dev environment & ops
