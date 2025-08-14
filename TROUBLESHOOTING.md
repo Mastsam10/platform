@@ -33,6 +33,50 @@ curl -X POST https://platform-gamma-flax.vercel.app/api/debug/fix-video-status
 - Let the webhook system handle status updates automatically
 - The webhook should only set status to "ready" when it receives a valid playback_id
 
+## Legacy Video Processing Issues
+
+### Problem: Videos stuck in "processing" with asset_id but no playback_id
+
+**Symptoms:**
+- Video has `status: "processing"` in database
+- Video has `asset_id` but `playback_id: null`
+- Video was uploaded before webhook system was fully working
+- Video never received the `video.asset.ready` webhook
+
+**Root Cause:**
+These are legacy videos that were uploaded when the webhook system wasn't properly configured or working. They have asset_ids but never received the webhook to set their playback_id and status to "ready".
+
+**Solution:**
+Use the legacy video processing endpoint:
+
+```bash
+# Process all legacy videos stuck in processing
+curl -X POST https://platform-gamma-flax.vercel.app/api/debug/process-legacy-videos
+```
+
+**What the fix does:**
+- Finds videos with asset_id but no playback_id
+- Simulates the `video.asset.ready` webhook for each video
+- Generates a legacy playback_id based on the asset_id
+- Updates the video status to "ready"
+- Triggers transcript and chapter generation
+
+**Alternative Manual Solution:**
+If the endpoint isn't available, manually update each video:
+
+```bash
+# For each legacy video, manually set it to ready with a generated playback_id
+curl -X POST https://platform-gamma-flax.vercel.app/api/debug/fix-missing-playback-ids \
+  -H "Content-Type: application/json" \
+  -d '{"videoTitle": "VIDEO_TITLE", "playbackId": "legacy_ASSET_ID_FIRST_8_CHARS"}'
+```
+
+**Prevention:**
+- Ensure webhook endpoints are properly configured
+- Monitor webhook logs for failures
+- Test webhook delivery in development
+- Consider implementing webhook retry logic
+
 ## Mux API Integration Issues
 
 ### Problem: TypeScript errors with Mux API calls
@@ -114,6 +158,9 @@ curl https://platform-gamma-flax.vercel.app/api/debug/simple-video-check
 # Fix video status inconsistencies
 curl -X POST https://platform-gamma-flax.vercel.app/api/debug/fix-video-status
 
+# Process legacy videos stuck in processing
+curl -X POST https://platform-gamma-flax.vercel.app/api/debug/process-legacy-videos
+
 # Clean up test data
 curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-test-data
 
@@ -128,6 +175,7 @@ curl https://platform-gamma-flax.vercel.app/api/debug/check-transcript-status
 3. **Clean up test data regularly**
 4. **Monitor webhook logs for failures**
 5. **Use debug endpoints to diagnose issues**
+6. **Legacy videos need special processing if webhooks failed**
 
 ---
 
