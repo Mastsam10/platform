@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { Video } from '@/lib/mux'
+import { cloudflareStream } from '@/lib/cloudflare'
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,32 +53,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Initialize Mux upload first to get asset_id
-    console.log('Initializing Mux upload...')
+    // Initialize Cloudflare Stream upload
+    console.log('Initializing Cloudflare Stream upload...')
     
-    // Check if Mux credentials are configured
-    if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
-      console.error('Mux credentials not configured')
+    // Check if Cloudflare credentials are configured
+    if (!process.env.CLOUDFLARE_API_TOKEN || !process.env.CLOUDFLARE_ACCOUNT_ID) {
+      console.error('Cloudflare credentials not configured')
       return NextResponse.json(
         { error: 'Video upload service not configured. Please contact administrator.' },
         { status: 503 }
       )
     }
     
-    const upload = await Video.uploads.create({
-      new_asset_settings: {
-        playback_policy: ['public']
-      },
-      cors_origin: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-    })
+    const upload = await cloudflareStream.createUpload(title)
 
-    console.log('Mux upload response:', JSON.stringify(upload, null, 2))
-    console.log(`Upload ID: ${upload.id}`)
-    console.log(`Asset ID: ${upload.asset_id}`)
+    console.log('Cloudflare upload response:', JSON.stringify(upload, null, 2))
+    console.log(`Upload URL: ${upload.result.uploadURL}`)
+    console.log(`Video UID: ${upload.result.uid}`)
 
     // Create video record in database
-    // Note: asset_id might be undefined initially, will be updated by webhook
-    console.log(`Creating video record with asset_id: ${upload.asset_id || 'undefined'}`)
+    console.log(`Creating video record with uid: ${upload.result.uid}`)
     const { data: video, error } = await supabase
       .from('videos')
       .insert({
@@ -86,8 +80,8 @@ export async function POST(request: NextRequest) {
         title,
         description,
         status: 'draft',
-        asset_id: upload.asset_id || null, // Handle undefined asset_id
-        upload_id: upload.id
+        asset_id: upload.result.uid, // Use Cloudflare UID as asset_id
+        upload_id: upload.result.uid // Use UID as upload_id too
       })
       .select()
       .single()
@@ -103,9 +97,9 @@ export async function POST(request: NextRequest) {
     console.log(`Video record created: ${video.id} with asset_id: ${upload.asset_id || 'undefined'}`)
 
     return NextResponse.json({
-      uploadUrl: upload.url,
+      uploadUrl: upload.result.uploadURL,
       videoId: video.id,
-      assetId: upload.asset_id
+      assetId: upload.result.uid
     })
 
   } catch (error) {

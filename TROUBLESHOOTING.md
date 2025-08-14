@@ -248,6 +248,70 @@ Transcription can only work when videos have a valid `playback_id`. Videos in "p
 - Never use `asset_id` for stream URLs
 - Ensure webhook processes videos completely before transcription
 
+## CRITICAL DISCOVERY: Mux URLs Not Publicly Accessible to Deepgram
+
+### Problem: Deepgram cannot access Mux streaming URLs
+
+**Discovery Date:** August 14, 2024
+
+**Root Cause:**
+Mux's streaming URLs (`https://stream.mux.com/...`) are **not publicly accessible** to Deepgram's servers, even with public playback policies. This is a common issue with video hosting services that use CDN-based streaming.
+
+**Evidence:**
+- Deepgram returns `REMOTE_CONTENT_ERROR` with "404 Not Found" for stream URLs
+- Download URLs return "Could not determine if URL for media download is publicly routable"
+- Public playback policies don't make URLs accessible to external services
+
+**Current Status:**
+- ✅ Deepgram API key is working correctly
+- ✅ Mux assets have public playback policies
+- ❌ Mux URLs are not accessible to Deepgram servers
+- ✅ Placeholder transcription system is working as fallback
+
+**Solutions:**
+1. **Immediate:** Use placeholder transcripts (current approach)
+2. **Long-term:** Implement direct file upload to Deepgram (requires downloading video first)
+3. **Alternative:** Use a different video hosting service with publicly accessible URLs
+
+**Prevention:**
+- Test URL accessibility before implementing transcription
+- Consider video hosting service limitations when designing transcription pipeline
+- Document URL accessibility requirements for external services
+
+## CRITICAL DISCOVERY: Transcription Changes Breaking Video System
+
+### Problem: Every transcription fix breaks video playback
+
+**Discovery Date:** August 14, 2024
+
+**The Pattern:**
+1. **Video works** → shows "Ready" and plays correctly
+2. **Notice transcription issue** → make changes to fix transcription
+3. **Video breaks** → shows "Video not ready" again
+4. **Have to fix video status** → back to square one
+
+**Root Cause:**
+Making **overly aggressive changes** to transcription system that affect webhook processing:
+- Adding strict `playback_id` requirements in transcription
+- Modifying webhook logic to only trigger transcription with `playback_id`
+- These changes break webhook correlation for videos
+
+**Key Insight:**
+The transcription system should be **independent** of webhook processing. Changes to transcription should not touch webhook logic that handles video status updates.
+
+**The Correct Approach:**
+1. **Keep webhook processing unchanged** - it's working correctly
+2. **Fix transcription separately** - without modifying webhook logic
+3. **Test changes incrementally** - one system at a time
+4. **Document all changes** - so we don't forget what breaks what
+
+**Prevention:**
+- **NEVER modify webhook logic** when fixing transcription issues
+- **Test each system independently** before combining changes
+- **Revert webhook changes** if video system breaks
+- **Document the relationship** between systems before making changes
+- **Make minimal, targeted fixes** instead of broad changes
+
 ## General Debugging
 
 ### Useful Debug Endpoints
@@ -283,6 +347,51 @@ curl https://platform-gamma-flax.vercel.app/api/debug/check-transcript-status
 7. **User experience first: don't show broken videos as "ready"**
 8. **CRITICAL: When a video shows "Video not ready", run fix-video-status and wait for webhook processing - don't manually set to "ready"**
 9. **The webhook system works correctly when videos are in "processing" state**
+10. **NEVER modify webhook logic when fixing transcription issues**
+11. **Test each system independently before combining changes**
+12. **Document all discoveries and changes immediately**
+
+## Systematic Change Management
+
+### Before Making Any Changes
+
+**Documentation First:**
+1. **Record current state** - what's working, what's broken
+2. **Identify the specific issue** - be precise about what needs fixing
+3. **Plan the fix** - write down exactly what you'll change
+4. **Predict side effects** - what might break as a result
+5. **Create rollback plan** - how to revert if things go wrong
+
+**Testing Strategy:**
+1. **Test current state** - verify what's working before changes
+2. **Make minimal changes** - one small fix at a time
+3. **Test immediately** - verify the fix works
+4. **Test other systems** - ensure nothing else broke
+5. **Document results** - what worked, what didn't
+
+**When Things Go Wrong:**
+1. **Stop immediately** - don't make more changes
+2. **Revert to last working state** - use git to go back
+3. **Document what broke** - add to troubleshooting guide
+4. **Analyze why it broke** - understand the root cause
+5. **Plan a different approach** - try a more targeted fix
+
+### System Dependencies Map
+
+**Webhook System:**
+- ✅ **Handles:** Video status updates, playback_id assignment
+- ✅ **Triggers:** Transcription and chapter generation
+- ❌ **Should NOT be modified for:** Transcription URL fixes, Deepgram API changes
+
+**Transcription System:**
+- ✅ **Handles:** Converting video to text, generating SRT
+- ✅ **Depends on:** Valid playback_id for stream URL
+- ❌ **Should NOT modify:** Webhook logic, video status handling
+
+**Video Player System:**
+- ✅ **Depends on:** Valid playback_id, correct video status
+- ✅ **Shows:** Video content, chapters, transcripts
+- ❌ **Should NOT be modified for:** Backend processing issues
 
 ---
 
