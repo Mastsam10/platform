@@ -69,14 +69,6 @@ export class CloudflareStream {
     }
   }
 
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`Cloudflare upload creation failed: ${error}`)
-    }
-
-    return await response.json()
-  }
-
   /**
    * Get video details by UID
    */
