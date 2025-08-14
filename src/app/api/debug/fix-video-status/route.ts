@@ -5,27 +5,34 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Starting video status fix...')
 
-    // Find videos that are marked as ready but don't have valid playback_id
-    const { data: videos, error: fetchError } = await supabaseAdmin
+    // First, let's see all videos to understand the current state
+    const { data: allVideos, error: fetchAllError } = await supabaseAdmin
       .from('videos')
       .select('id, title, status, playback_id, asset_id')
-      .eq('status', 'ready')
-      .or('playback_id.is.null,playback_id.eq.PROCESSING')
 
-    if (fetchError) {
-      console.error('Failed to fetch videos:', fetchError)
+    if (fetchAllError) {
+      console.error('Failed to fetch all videos:', fetchAllError)
       return NextResponse.json({ 
         error: 'Failed to fetch videos' 
       }, { status: 500 })
     }
 
-    console.log(`Found ${videos?.length || 0} videos with inconsistent status`)
+    console.log('Current videos:', allVideos)
 
-    if (!videos || videos.length === 0) {
+    // Find videos that need fixing
+    const videosToFix = allVideos?.filter(video => 
+      video.status === 'ready' && 
+      (!video.playback_id || video.playback_id === 'PROCESSING')
+    ) || []
+
+    console.log(`Found ${videosToFix.length} videos with inconsistent status`)
+
+    if (videosToFix.length === 0) {
       return NextResponse.json({
         success: true,
         message: 'No videos with inconsistent status found',
-        fixedVideos: []
+        fixedVideos: [],
+        allVideos: allVideos
       })
     }
 
@@ -36,8 +43,7 @@ export async function POST(request: NextRequest) {
         status: 'processing',
         playback_id: null // Clear any fake playback_id
       })
-      .eq('status', 'ready')
-      .or('playback_id.is.null,playback_id.eq.PROCESSING')
+      .in('id', videosToFix.map(v => v.id))
 
     if (updateError) {
       console.error('Failed to update video status:', updateError)
@@ -50,9 +56,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Fixed status for ${videos.length} videos`,
-      fixedVideos: videos,
-      action: 'Changed status from "ready" to "processing" for videos without valid playback_id'
+      message: `Fixed status for ${videosToFix.length} videos`,
+      fixedVideos: videosToFix,
+      action: 'Changed status from "ready" to "processing" for videos without valid playback_id',
+      allVideos: allVideos
     })
 
   } catch (error) {
