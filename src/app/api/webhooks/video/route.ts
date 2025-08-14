@@ -57,6 +57,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Handle video.asset.created event (when asset is created independently)
+    if (type === 'video.asset.created') {
+      const { id: asset_id, playback_ids } = data
+      console.log(`✅ HANDLED: Asset created: ${asset_id}`)
+      
+      if (playback_ids && playback_ids.length > 0) {
+        const playback_id = playback_ids[0].id
+        console.log(`Found playback_id: ${playback_id}`)
+        
+        // Update video with playback_id
+        const { data: video, error: videoError } = await supabaseAdmin
+          .from('videos')
+          .select('id')
+          .eq('asset_id', asset_id)
+          .single()
+          
+        if (video && !videoError) {
+          await supabaseAdmin
+            .from('videos')
+            .update({ playback_id })
+            .eq('id', video.id)
+          console.log(`✅ Updated video ${video.id} with playback_id: ${playback_id}`)
+        }
+      }
+    }
+
 
 
     // Handle video.asset.ready event (when video is fully processed)
@@ -153,6 +179,7 @@ export async function POST(request: NextRequest) {
     // Log any other webhook events we're not handling
     if (type !== 'video.upload.created' && 
         type !== 'video.upload.asset_created' && 
+        type !== 'video.asset.created' && 
         type !== 'video.asset.ready') {
       console.log(`Unhandled webhook event: ${type}`, data)
     }
