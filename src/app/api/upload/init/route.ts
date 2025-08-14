@@ -53,14 +53,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create video record in database
+    // Initialize Mux upload first to get asset_id
+    console.log('Initializing Mux upload...')
+    
+    // Check if Mux credentials are configured
+    if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
+      console.error('Mux credentials not configured')
+      return NextResponse.json(
+        { error: 'Video upload service not configured. Please contact administrator.' },
+        { status: 503 }
+      )
+    }
+    
+    const upload = await Video.uploads.create({
+      new_asset_settings: {
+        playback_policy: ['public']
+      },
+      cors_origin: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    })
+
+    // Create video record in database with asset_id already set
     const { data: video, error } = await supabase
       .from('videos')
       .insert({
         channel_id: actualChannelId,
         title,
         description,
-        status: 'draft'
+        status: 'draft',
+        asset_id: upload.asset_id
       })
       .select()
       .single()
@@ -73,47 +93,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Initialize Mux upload
-    try {
-      console.log('Initializing Mux upload...')
-      
-      // Check if Mux credentials are configured
-      if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
-        console.error('Mux credentials not configured')
-        return NextResponse.json(
-          { error: 'Video upload service not configured. Please contact administrator.' },
-          { status: 503 }
-        )
-      }
-      
-      const upload = await Video.uploads.create({
-        new_asset_settings: {
-          playback_policy: ['public']
-        },
-        cors_origin: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-      })
-
-      // Store Mux asset ID for later webhook processing
-      await supabase
-        .from('videos')
-        .update({ 
-          asset_id: upload.asset_id
-        })
-        .eq('id', video.id)
-
-      return NextResponse.json({
-        uploadUrl: upload.url,
-        videoId: video.id,
-        assetId: upload.asset_id
-      })
-
-    } catch (muxError) {
-      console.error('Mux error:', muxError)
-      return NextResponse.json(
-        { error: `Failed to initialize video upload: ${muxError instanceof Error ? muxError.message : 'Unknown error'}` },
-        { status: 500 }
-      )
-    }
+    return NextResponse.json({
+      uploadUrl: upload.url,
+      videoId: video.id,
+      assetId: upload.asset_id
+    })
 
   } catch (error) {
     console.error('Upload init error:', error)
