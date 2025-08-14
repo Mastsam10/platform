@@ -62,7 +62,8 @@ export async function POST(request: NextRequest) {
 
       // Trigger transcript generation
       try {
-        const transcriptResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/transcripts/start`, {
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-gamma-flax.vercel.app'
+        const transcriptResponse = await fetch(`${baseUrl}/api/transcripts/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
           
           // Trigger chapter generation after transcript is ready
           if (transcriptData.srt) {
-            const chapterResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/chapters/generate`, {
+            const chapterResponse = await fetch(`${baseUrl}/api/chapters/generate`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
