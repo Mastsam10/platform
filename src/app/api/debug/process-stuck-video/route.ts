@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { getMuxPlaybackId } from '@/lib/mux'
+import { Video } from '@/lib/mux'
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,12 +36,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Try to get the playback_id from Mux
+    // Try to get the playback_id from Mux using the Video API
     try {
-      const playbackId = await getMuxPlaybackId(video.asset_id)
-      console.log(`Got playback_id from Mux: ${playbackId}`)
+      const asset = await Video.Assets.get(video.asset_id)
+      console.log('Mux asset:', asset)
+      
+      if (asset && asset.playback_ids && asset.playback_ids.length > 0) {
+        const playbackId = asset.playback_ids[0].id
+        console.log(`Got playback_id from Mux: ${playbackId}`)
 
-      if (playbackId) {
         // Update the video with the playback_id and set status to ready
         const { error: updateError } = await supabaseAdmin
           .from('videos')
