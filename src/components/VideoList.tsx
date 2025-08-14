@@ -34,7 +34,6 @@ export default function VideoList() {
         throw new Error('Failed to fetch videos')
       }
       const data = await response.json()
-      console.log('Fetched videos:', data.videos)
       setVideos(data.videos || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load videos')
@@ -106,15 +105,12 @@ export default function VideoList() {
             </div>
             <div>
               {video.playback_id ? (
-                <>
-                  {console.log('Rendering VideoPlayer with:', { title: video.title, playbackId: video.playback_id, aspectRatio: video.aspect_ratio })}
-                  <VideoPlayer 
-                    playbackId={video.playback_id} 
-                    title={video.title}
-                    className="w-full"
-                    aspectRatio={video.aspect_ratio || '16/9'}
-                  />
-                </>
+                <VideoPlayer 
+                  playbackId={video.playback_id} 
+                  title={video.title}
+                  className="w-full"
+                  aspectRatio={video.aspect_ratio || '16/9'}
+                />
               ) : (
                 <div className="bg-gray-100 rounded-lg p-4 text-center">
                   <p className="text-gray-500">Video not ready</p>
