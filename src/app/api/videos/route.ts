@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
           denomination
         )
       `)
-      .order('created_at', { ascending: false, nullsLast: true })
+      .order('created_at', { ascending: false })
 
     if (error) {
       console.error('Database error:', error)
