@@ -28,10 +28,18 @@ curl -X POST https://platform-gamma-flax.vercel.app/api/debug/fix-video-status
 - Changes their status to "processing"
 - Clears any fake playback_ids (like "PROCESSING")
 
+**CRITICAL DISCOVERY (Aug 14, 2024):**
+After fixing the status inconsistency, the video **automatically becomes playable** when the webhook system processes it correctly. This means:
+
+1. **The fix is working correctly** - changing status from "ready" to "processing" allows the webhook to properly set the playback_id
+2. **The webhook system is functional** - it just needs videos to be in the correct state to process them
+3. **Don't manually set videos to "ready"** - this breaks the webhook correlation process
+
 **Prevention:**
 - Never manually set video status to "ready" without a valid playback_id
 - Let the webhook system handle status updates automatically
 - The webhook should only set status to "ready" when it receives a valid playback_id
+- **If a video shows "Video not ready", run the fix-video-status endpoint and wait for webhook processing**
 
 ## Legacy Video Processing Issues
 
@@ -164,6 +172,41 @@ The webhook system now uses multiple correlation methods:
 - Verify Mux webhook configuration
 - Use the webhook debug endpoint regularly to catch issues early
 
+## CRITICAL DISCOVERY: Webhook Processing Flow
+
+### Problem: Videos marked "ready" but not actually playable
+
+**Discovery Date:** August 14, 2024
+
+**What We Learned:**
+When a video shows "Ready" status but displays "Video not ready" in the player, the issue is NOT with the webhook system itself, but with the video being in the wrong state for webhook processing.
+
+**The Correct Flow:**
+1. **Video uploaded** → status: "draft"
+2. **Asset created** → status: "processing" 
+3. **Asset ready** → webhook sets playback_id and status: "ready"
+4. **Video becomes playable**
+
+**The Broken Flow:**
+1. **Video uploaded** → status: "draft"
+2. **Asset created** → status: "processing"
+3. **Something goes wrong** → video gets marked "ready" without playback_id
+4. **Video shows "Ready" but "Video not ready"**
+
+**The Fix:**
+1. **Run fix-video-status** → changes status back to "processing"
+2. **Wait for webhook** → webhook processes the video correctly
+3. **Video becomes playable** → webhook sets proper playback_id and status: "ready"
+
+**Key Insight:**
+The webhook system works perfectly when videos are in the correct "processing" state. The problem occurs when videos are prematurely marked as "ready" without a valid playback_id.
+
+**Prevention:**
+- Never manually set video status to "ready"
+- Always use the fix-video-status endpoint for "Video not ready" issues
+- Let the webhook system handle the final "ready" state
+- The webhook correlation works correctly when videos are in "processing" state
+
 ## General Debugging
 
 ### Useful Debug Endpoints
@@ -197,6 +240,8 @@ curl https://platform-gamma-flax.vercel.app/api/debug/check-transcript-status
 5. **Use debug endpoints to diagnose issues**
 6. **For legacy videos: prefer clean slate over fake fixes**
 7. **User experience first: don't show broken videos as "ready"**
+8. **CRITICAL: When a video shows "Video not ready", run fix-video-status and wait for webhook processing - don't manually set to "ready"**
+9. **The webhook system works correctly when videos are in "processing" state**
 
 ---
 
