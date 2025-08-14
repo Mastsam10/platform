@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import Hls from 'hls.js'
 
 interface VideoPlayerProps {
@@ -14,11 +14,10 @@ export default function VideoPlayer({ playbackId, title, className = '', aspectR
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
   
-
-
   useEffect(() => {
     if (videoRef.current && playbackId) {
-      const videoUrl = `https://stream.mux.com/${playbackId}.m3u8`
+      // Use Cloudflare Stream URL format
+      const videoUrl = `https://videodelivery.net/${playbackId}/manifest/video.m3u8`
       
       // Check if HLS is supported natively
       if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
@@ -38,32 +37,34 @@ export default function VideoPlayer({ playbackId, title, className = '', aspectR
           console.error('HLS error:', data)
         })
       } else {
-        console.error('HLS not supported in this browser')
+        // Fallback for browsers that don't support HLS
+        console.warn('HLS not supported in this browser')
       }
     }
-    
-    // Cleanup
+
     return () => {
       if (hlsRef.current) {
         hlsRef.current.destroy()
-        hlsRef.current = null
       }
     }
   }, [playbackId])
 
   return (
-    <div className={`w-full ${className}`}>
-      {title && (
-        <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      )}
+    <div className={`relative ${className}`} style={{ aspectRatio }}>
       <video
         ref={videoRef}
         controls
-        className="w-full rounded-lg shadow-lg"
-        style={{ aspectRatio }}
+        className="w-full h-full rounded-lg"
+        poster={`https://videodelivery.net/${playbackId}/thumbnails/thumbnail.jpg?time=0s`}
       >
+        <track kind="captions" />
         Your browser does not support the video tag.
       </video>
+      {title && (
+        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2 rounded-b-lg">
+          <p className="text-sm font-medium">{title}</p>
+        </div>
+      )}
     </div>
   )
 }
