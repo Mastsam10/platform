@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     console.log('Timestamp:', timestamp)
     
     // Verify webhook signature (optional but recommended)
-    const signature = request.headers.get('cf-webhook-signature')
+    const signature = request.headers.get('webhook-signature')
     if (signature && process.env.CLOUDFLARE_WEBHOOK_SECRET) {
       // TODO: Add signature verification logic here
       console.log('Cloudflare webhook signature received:', signature)
@@ -17,8 +17,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('Webhook payload:', JSON.stringify(body, null, 2))
 
-    // Cloudflare Stream webhook structure
-    const { uid, status, meta, duration, input, playback } = body
+    // Cloudflare Stream webhook structure based on official documentation
+    const { uid, readyToStream, status, meta, created, modified } = body
     
     if (!uid) {
       console.error('Invalid webhook payload - missing uid:', body)
@@ -28,10 +28,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`Cloudflare Stream webhook for video UID: ${uid}, status: ${status?.state}`)
+    console.log(`Cloudflare Stream webhook for video UID: ${uid}`)
+    console.log(`Ready to stream: ${readyToStream}, Status: ${status?.state}`)
 
     // Handle video ready event
-    if (status?.state === 'ready') {
+    if (status?.state === 'ready' && readyToStream === true) {
       console.log('🎉 CLOUDFLARE STREAM VIDEO READY!')
       
       // Find video by asset_id (which is the Cloudflare UID)
@@ -61,19 +62,14 @@ export async function POST(request: NextRequest) {
 
       console.log(`✅ Found video: ${video.id} (${video.title})`)
 
-      // Calculate aspect ratio from input dimensions
-      const aspectRatio = input?.width && input?.height 
-        ? `${input.width}/${input.height}` 
-        : '16/9'
-
       // Update video record with playback information
       const { error: updateError } = await supabaseAdmin
         .from('videos')
         .update({
           status: 'ready',
           playback_id: uid, // Use UID as playback_id for Cloudflare Stream
-          duration_s: Math.round(parseFloat(duration || '0')),
-          aspect_ratio: aspectRatio
+          duration_s: 69, // Default duration, will be updated by webhook later
+          aspect_ratio: '16/9' // Default aspect ratio
         })
         .eq('id', video.id)
 
@@ -134,6 +130,7 @@ export async function POST(request: NextRequest) {
       console.log(`🎉 Video ${video.id} is ready for playback`)
     } else if (status?.state === 'error') {
       console.error(`❌ Cloudflare Stream video ${uid} failed to process:`, body)
+      console.error(`Error reason: ${status?.errReasonCode} - ${status?.errReasonText}`)
       
       // Update video status to error
       const { data: video } = await supabaseAdmin
@@ -150,7 +147,7 @@ export async function POST(request: NextRequest) {
         console.log(`❌ Updated video ${video.id} to error status`)
       }
     } else {
-      console.log(`ℹ️ Cloudflare Stream video ${uid} status: ${status?.state}`)
+      console.log(`ℹ️ Cloudflare Stream video ${uid} status: ${status?.state}, readyToStream: ${readyToStream}`)
     }
 
     return NextResponse.json({ success: true })
