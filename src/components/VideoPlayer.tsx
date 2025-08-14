@@ -7,9 +7,10 @@ interface VideoPlayerProps {
   playbackId: string
   title?: string
   className?: string
+  aspectRatio?: string
 }
 
-export default function VideoPlayer({ playbackId, title, className = '' }: VideoPlayerProps) {
+export default function VideoPlayer({ playbackId, title, className = '', aspectRatio = '16/9' }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
 
@@ -70,7 +71,7 @@ export default function VideoPlayer({ playbackId, title, className = '' }: Video
         ref={videoRef}
         controls
         className="w-full rounded-lg shadow-lg"
-        style={{ aspectRatio: '9/16' }}
+        style={{ aspectRatio }}
       >
         Your browser does not support the video tag.
       </video>

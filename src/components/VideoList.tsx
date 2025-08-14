@@ -10,6 +10,7 @@ interface Video {
   status?: string
   playback_id?: string
   duration_s?: number
+  aspect_ratio?: string
   published_at?: string
   channels?: {
     name: string
@@ -106,7 +107,9 @@ export default function VideoList() {
               {video.playback_id ? (
                 <VideoPlayer 
                   playbackId={video.playback_id} 
+                  title={video.title}
                   className="w-full"
+                  aspectRatio={video.aspect_ratio || '16/9'}
                 />
               ) : (
                 <div className="bg-gray-100 rounded-lg p-4 text-center">
