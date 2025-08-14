@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import Hls from 'hls.js'
 
 interface VideoPlayerProps {
   playbackId: string
@@ -10,12 +11,53 @@ interface VideoPlayerProps {
 
 export default function VideoPlayer({ playbackId, title, className = '' }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const hlsRef = useRef<Hls | null>(null)
 
   useEffect(() => {
     if (videoRef.current && playbackId) {
-      // Mux HLS stream URL
       const videoUrl = `https://stream.mux.com/${playbackId}.m3u8`
-      videoRef.current.src = videoUrl
+      console.log('Loading video URL:', videoUrl)
+      
+      // Check if HLS is supported natively
+      if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support (Safari)
+        videoRef.current.src = videoUrl
+        console.log('Using native HLS support')
+      } else if (Hls.isSupported()) {
+        // Use HLS.js for other browsers
+        if (hlsRef.current) {
+          hlsRef.current.destroy()
+        }
+        
+        hlsRef.current = new Hls()
+        hlsRef.current.loadSource(videoUrl)
+        hlsRef.current.attachMedia(videoRef.current)
+        
+        hlsRef.current.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log('HLS manifest parsed, video ready to play')
+        })
+        
+        hlsRef.current.on(Hls.Events.ERROR, (event, data) => {
+          console.error('HLS error:', data)
+        })
+        
+        console.log('Using HLS.js')
+      } else {
+        console.error('HLS not supported in this browser')
+      }
+      
+      // Add event listeners for debugging
+      videoRef.current.addEventListener('loadstart', () => console.log('Video loadstart'))
+      videoRef.current.addEventListener('loadeddata', () => console.log('Video loadeddata'))
+      videoRef.current.addEventListener('error', (e) => console.error('Video error:', e))
+    }
+    
+    // Cleanup
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy()
+        hlsRef.current = null
+      }
     }
   }, [playbackId])
 
@@ -28,7 +70,7 @@ export default function VideoPlayer({ playbackId, title, className = '' }: Video
         ref={videoRef}
         controls
         className="w-full rounded-lg shadow-lg"
-        style={{ aspectRatio: '16/9' }}
+        style={{ aspectRatio: '9/16' }}
       >
         Your browser does not support the video tag.
       </video>
