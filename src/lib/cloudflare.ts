@@ -47,25 +47,34 @@ export class CloudflareStream {
 
   /**
    * Create a direct upload URL for Cloudflare Stream
-   * Based on testing: Cloudflare Stream works with /stream/copy endpoint
-   * For Direct Creator Uploads, we need to use a different approach
+   * For now, we'll use a placeholder approach since the /stream endpoint
+   * doesn't seem to work for creating upload URLs as expected
    */
   async createUpload(title: string): Promise<CloudflareUploadResponse> {
-    // For now, we'll use a placeholder approach since Direct Creator Uploads
-    // requires a different endpoint structure than what we've tested
-    // The /stream endpoint we tried doesn't work for creating upload URLs
-    // The /stream/copy endpoint works for copying from URLs (tested successfully)
-    
-    // Generate a temporary UID for now
-    const tempUid = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    
-    // Return a mock response that matches our interface
-    return {
-      success: true,
-      result: {
-        uploadURL: `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/${tempUid}/upload`,
-        uid: tempUid
+    try {
+      console.log('Creating Cloudflare Stream upload URL...')
+      
+      // For now, we'll use a placeholder approach since Direct Creator Uploads
+      // requires a different endpoint structure than what we've tested
+      // The /stream endpoint we tried doesn't work for creating upload URLs
+      // The /stream/copy endpoint works for copying from URLs (tested successfully)
+      
+      // Generate a temporary UID for now
+      const tempUid = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      
+      console.log('Using placeholder upload URL for now')
+      
+      // Return a mock response that matches our interface
+      return {
+        success: true,
+        result: {
+          uploadURL: `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/${tempUid}/upload`,
+          uid: tempUid
+        }
       }
+    } catch (error) {
+      console.error('Error creating Cloudflare upload:', error)
+      throw error
     }
   }
 
