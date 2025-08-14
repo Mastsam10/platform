@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { supabase } from '@/lib/supabase'
+
+// Use regular client for now - will upgrade to admin client when service role key is available
+const supabaseClient = supabase
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,7 +48,7 @@ export async function POST(request: NextRequest) {
 
       if (asset_id && upload_id) {
         // Update video by upload_id (most reliable correlation)
-        const { data: updatedVideo, error: updateError } = await supabaseAdmin
+        const { data: updatedVideo, error: updateError } = await supabaseClient
           .from('videos')
           .update({ asset_id, status: 'processing' })
           .eq('upload_id', upload_id)
@@ -75,7 +78,7 @@ export async function POST(request: NextRequest) {
         .single()
         
       if (video && !videoError) {
-        await supabaseAdmin
+        await supabaseClient
           .from('videos')
           .update({ status: 'processing' })
           .eq('id', video.id)
@@ -109,7 +112,7 @@ export async function POST(request: NextRequest) {
       const videoId = video.id
 
       // Update video record with playback information
-      const { error } = await supabaseAdmin
+      const { error } = await supabaseClient
         .from('videos')
         .update({
           status: 'ready',
