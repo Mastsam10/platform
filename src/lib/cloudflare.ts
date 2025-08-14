@@ -49,7 +49,7 @@ export class CloudflareStream {
    * Create a direct upload URL for Cloudflare Stream
    */
   async createUpload(title: string): Promise<CloudflareUploadResponse> {
-    const response = await fetch(`https://api.cloudflare.com/client/v4/stream`, {
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.apiToken}`,
@@ -75,7 +75,7 @@ export class CloudflareStream {
    * Get video details by UID
    */
   async getVideo(uid: string): Promise<CloudflareStreamResponse> {
-    const response = await fetch(`https://api.cloudflare.com/client/v4/stream/${uid}`, {
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/${uid}`, {
       headers: {
         'Authorization': `Bearer ${this.apiToken}`
       }
