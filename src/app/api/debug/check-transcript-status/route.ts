@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         videoTagsCount: videoTags ? videoTags.length : 0,
         videoTags: videoTags || []
       },
-      potentialIssues: []
+      potentialIssues: [] as string[]
     }
 
     // Identify potential issues
