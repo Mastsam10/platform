@@ -12,10 +12,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     console.log('Webhook payload:', JSON.stringify(body, null, 2))
-    console.log('Webhook type:', type)
     
     // Mux webhook structure: { type, data, ... }
     const { type, data } = body
+    console.log('Webhook type:', type)
 
     // Validate webhook
     if (!type || !data) {
