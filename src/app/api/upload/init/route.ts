@@ -72,8 +72,13 @@ export async function POST(request: NextRequest) {
       cors_origin: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     })
 
-    // Create video record in database with asset_id already set
-    console.log(`Creating video record with asset_id: ${upload.asset_id}`)
+    console.log('Mux upload response:', JSON.stringify(upload, null, 2))
+    console.log(`Upload ID: ${upload.id}`)
+    console.log(`Asset ID: ${upload.asset_id}`)
+
+    // Create video record in database
+    // Note: asset_id might be undefined initially, will be updated by webhook
+    console.log(`Creating video record with asset_id: ${upload.asset_id || 'undefined'}`)
     const { data: video, error } = await supabase
       .from('videos')
       .insert({
@@ -81,7 +86,7 @@ export async function POST(request: NextRequest) {
         title,
         description,
         status: 'draft',
-        asset_id: upload.asset_id
+        asset_id: upload.asset_id || null // Handle undefined asset_id
       })
       .select()
       .single()
@@ -94,7 +99,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`Video record created: ${video.id} with asset_id: ${upload.asset_id}`)
+    console.log(`Video record created: ${video.id} with asset_id: ${upload.asset_id || 'undefined'}`)
 
     return NextResponse.json({
       uploadUrl: upload.url,
