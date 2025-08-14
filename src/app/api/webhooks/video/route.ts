@@ -31,13 +31,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Handle video.upload.created event (when upload is first created)
+    if (type === 'video.upload.created') {
+      const { id: upload_id } = data
+      console.log(`Upload created: ${upload_id}`)
+      // We could store upload_id in videos table for better tracking
+    }
+
     // Handle video.upload.asset_created event (when asset is created from upload)
     if (type === 'video.upload.asset_created') {
       const { asset_id, upload_id } = data
       console.log(`Asset created from upload: ${asset_id} for upload: ${upload_id}`)
       
-      // Find video by upload_id (we need to store upload_id in videos table)
-      // For now, we'll find by asset_id if it exists
+      // Find video by asset_id
       if (asset_id) {
         const { data: video, error: videoError } = await supabase
           .from('videos')
@@ -52,6 +58,27 @@ export async function POST(request: NextRequest) {
             .eq('id', video.id)
           console.log(`Updated video ${video.id} status to 'processing'`)
         }
+      }
+    }
+
+    // Handle video.asset.created event (when asset is created independently)
+    if (type === 'video.asset.created') {
+      const { id: asset_id } = data
+      console.log(`Asset created: ${asset_id}`)
+      
+      // Find video by asset_id
+      const { data: video, error: videoError } = await supabase
+        .from('videos')
+        .select('id')
+        .eq('asset_id', asset_id)
+        .single()
+        
+      if (video && !videoError) {
+        await supabase
+          .from('videos')
+          .update({ status: 'processing' })
+          .eq('id', video.id)
+        console.log(`Updated video ${video.id} status to 'processing'`)
       }
     }
 
