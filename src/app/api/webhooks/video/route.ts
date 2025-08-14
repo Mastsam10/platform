@@ -63,7 +63,8 @@ export async function POST(request: NextRequest) {
         .update({
           status: 'ready',
           playback_id,
-          duration_s: duration
+          duration_s: duration,
+          aspect_ratio: '9/16' // Default for now, can be made dynamic later
         })
         .eq('id', videoId)
 
