@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
 
     // Find videos that need fixing
     const videosToFix = allVideos?.filter(video => 
-      video.status === 'ready' && 
-      (!video.playback_id || video.playback_id === 'PROCESSING')
+      (video.status === 'ready' && (!video.playback_id || video.playback_id === 'PROCESSING')) ||
+      (video.status === 'processing' && video.playback_id && video.playback_id !== 'PROCESSING')
     ) || []
 
     console.log(`Found ${videosToFix.length} videos with inconsistent status`)
@@ -36,29 +36,44 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Update these videos to status 'processing' since they don't have valid playback_id
-    const { error: updateError } = await supabaseAdmin
-      .from('videos')
-      .update({ 
-        status: 'processing',
-        playback_id: null // Clear any fake playback_id
-      })
-      .in('id', videosToFix.map(v => v.id))
+    // Process each video individually
+    const results = []
+    for (const video of videosToFix) {
+      let updateData = {}
+      
+      if (video.status === 'ready' && (!video.playback_id || video.playback_id === 'PROCESSING')) {
+        // Video marked as ready but has no valid playback_id - set to processing
+        updateData = { 
+          status: 'processing',
+          playback_id: null
+        }
+      } else if (video.status === 'processing' && video.playback_id && video.playback_id !== 'PROCESSING') {
+        // Video marked as processing but has valid playback_id - set to ready
+        updateData = { 
+          status: 'ready'
+        }
+      }
 
-    if (updateError) {
-      console.error('Failed to update video status:', updateError)
-      return NextResponse.json({ 
-        error: 'Failed to update video status' 
-      }, { status: 500 })
+      if (Object.keys(updateData).length > 0) {
+        const { error: updateError } = await supabaseAdmin
+          .from('videos')
+          .update(updateData)
+          .eq('id', video.id)
+
+        if (updateError) {
+          console.error(`Failed to update video ${video.title}:`, updateError)
+          results.push({ video: video.title, success: false, error: updateError })
+        } else {
+          console.log(`Updated video ${video.title}:`, updateData)
+          results.push({ video: video.title, success: true, changes: updateData })
+        }
+      }
     }
-
-    console.log('Updated video statuses')
 
     return NextResponse.json({
       success: true,
-      message: `Fixed status for ${videosToFix.length} videos`,
-      fixedVideos: videosToFix,
-      action: 'Changed status from "ready" to "processing" for videos without valid playback_id',
+      message: `Processed ${videosToFix.length} videos`,
+      results: results,
       allVideos: allVideos
     })
 
