@@ -49,6 +49,7 @@ export class CloudflareStream {
    * Create a direct upload URL for Cloudflare Stream
    */
   async createUpload(title: string): Promise<CloudflareUploadResponse> {
+    // First, create a video record
     const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream`, {
       method: 'POST',
       headers: {
@@ -56,10 +57,11 @@ export class CloudflareStream {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        maxDurationSeconds: 3600, // 1 hour max
         meta: {
           name: title
-        }
+        },
+        requireSignedURLs: false,
+        allowedOrigins: ['*']
       })
     })
 

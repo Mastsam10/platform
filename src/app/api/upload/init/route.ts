@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`Video record created: ${video.id} with asset_id: ${upload.asset_id || 'undefined'}`)
+    console.log(`Video record created: ${video.id} with uid: ${upload.result.uid}`)
 
     return NextResponse.json({
       uploadUrl: upload.result.uploadURL,
