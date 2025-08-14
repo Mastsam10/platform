@@ -19,13 +19,11 @@ export default function VideoPlayer({ playbackId, title, className = '', aspectR
   useEffect(() => {
     if (videoRef.current && playbackId) {
       const videoUrl = `https://stream.mux.com/${playbackId}.m3u8`
-      console.log('Loading video URL:', videoUrl)
       
       // Check if HLS is supported natively
       if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Native HLS support (Safari)
         videoRef.current.src = videoUrl
-        console.log('Using native HLS support')
       } else if (Hls.isSupported()) {
         // Use HLS.js for other browsers
         if (hlsRef.current) {
@@ -36,23 +34,12 @@ export default function VideoPlayer({ playbackId, title, className = '', aspectR
         hlsRef.current.loadSource(videoUrl)
         hlsRef.current.attachMedia(videoRef.current)
         
-        hlsRef.current.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log('HLS manifest parsed, video ready to play')
-        })
-        
         hlsRef.current.on(Hls.Events.ERROR, (event, data) => {
           console.error('HLS error:', data)
         })
-        
-        console.log('Using HLS.js')
       } else {
         console.error('HLS not supported in this browser')
       }
-      
-      // Add event listeners for debugging
-      videoRef.current.addEventListener('loadstart', () => console.log('Video loadstart'))
-      videoRef.current.addEventListener('loadeddata', () => console.log('Video loadeddata'))
-      videoRef.current.addEventListener('error', (e) => console.error('Video error:', e))
     }
     
     // Cleanup

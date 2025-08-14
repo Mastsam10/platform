@@ -34,8 +34,6 @@ export default function VideoList() {
         throw new Error('Failed to fetch videos')
       }
       const data = await response.json()
-      console.log('API Response:', data)
-      console.log('Videos array:', data.videos)
       setVideos(data.videos || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load videos')
@@ -79,7 +77,6 @@ export default function VideoList() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Recent Videos</h2>
       {videos.map((video) => {
-        console.log('Rendering video:', video)
         return (
         <div key={video.id} className="bg-white rounded-lg shadow-md p-6">
           <div className="grid md:grid-cols-2 gap-6">
