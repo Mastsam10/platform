@@ -68,7 +68,7 @@ curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-test-data
 - **No confusion** about what's working vs. broken
 - **Simpler support** - no need to explain why some videos don't work
 
-**Alternative Solution: Manual Processing (Not Recommended)**
+**Alternative Solution: Manual Processing (NOT RECOMMENDED - CAUSES PROBLEMS)**
 If you must keep legacy videos, you can manually process them, but this creates a poor user experience:
 
 ```bash
@@ -82,6 +82,11 @@ curl -X POST https://platform-gamma-flax.vercel.app/api/debug/process-legacy-vid
 - Generates a legacy playback_id based on the asset_id
 - Updates the video status to "ready"
 - **WARNING**: These videos may not actually play properly
+
+**CRITICAL WARNING: The process-stuck-video endpoint is BROKEN**
+This endpoint creates fake `playback_id` values like `placeholder_${asset_id}` and sets videos to "ready" status. This **violates our troubleshooting principles** and creates the exact "Video not ready" issues we've been fixing repeatedly.
+
+**DO NOT USE** the `process-stuck-video` endpoint - it breaks the webhook system!
 
 **Prevention:**
 - Ensure webhook endpoints are properly configured

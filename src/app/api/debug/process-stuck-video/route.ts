@@ -35,32 +35,37 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Since the video has an asset_id, we can assume it's ready
-    // Update the video status to ready and set a placeholder playback_id
-    const { error: updateError } = await supabaseAdmin
-      .from('videos')
-      .update({ 
-        status: 'ready',
-        playback_id: `placeholder_${video.asset_id.substring(0, 8)}`
-      })
-      .eq('id', video.id)
+    // CRITICAL: Do not set status to "ready" without a real playback_id
+    // This endpoint was causing the "Video not ready" issues
+    // Instead, ensure the video is in "processing" state for webhook to handle
+    
+    // Only update if the video is not already in processing state
+    if (video.status !== 'processing') {
+      const { error: updateError } = await supabaseAdmin
+        .from('videos')
+        .update({ 
+          status: 'processing',
+          playback_id: null // Clear any fake playback_ids
+        })
+        .eq('id', video.id)
 
-    if (updateError) {
-      console.error('Failed to update video:', updateError)
-      return NextResponse.json({ 
-        error: 'Failed to update video' 
-      }, { status: 500 })
+      if (updateError) {
+        console.error('Failed to update video:', updateError)
+        return NextResponse.json({ 
+          error: 'Failed to update video' 
+        }, { status: 500 })
+      }
     }
 
     return NextResponse.json({
       success: true,
-      message: `Successfully processed ${videoTitle}`,
+      message: `Successfully reset ${videoTitle} to processing state`,
       video: {
         ...video,
-        status: 'ready',
-        playback_id: `placeholder_${video.asset_id.substring(0, 8)}`
+        status: 'processing',
+        playback_id: null
       },
-      note: 'Video marked as ready with placeholder playback_id. Real playback_id will be set by webhook when available.'
+      note: 'Video reset to processing state. Webhook will set real playback_id and status when ready. DO NOT manually set videos to "ready" without valid playback_id.'
     })
 
   } catch (error) {
