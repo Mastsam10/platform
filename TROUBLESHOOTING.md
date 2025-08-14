@@ -278,6 +278,55 @@ Mux's streaming URLs (`https://stream.mux.com/...`) are **not publicly accessibl
 - Consider video hosting service limitations when designing transcription pipeline
 - Document URL accessibility requirements for external services
 
+## CRITICAL DISCOVERY: Cloudflare Stream Setup and API Testing
+
+### Problem: Cloudflare Stream API endpoints and authentication
+
+**Discovery Date:** August 14, 2024
+
+**What We Tested:**
+
+**✅ WORKING:**
+1. **API Token Authentication** - Token `VkKc0w2hhUqrbySCnApq4VUPMQ2uwhPu-K6iKd8U` is valid and active (when used directly)
+2. **Environment Variable Issue** - Token in `.env.local` is truncated: `VkKc0w2hhUqrbySCnApq4VUPMQ2uwhPu` (missing `-K6iKd8U` suffix)
+2. **Account ID** - `082f1807a28d7fae285e3da0fcb28669` is correct
+3. **Stream Service** - Cloudflare Stream is enabled and working
+4. **`/stream/copy` Endpoint** - Successfully copied video from URL:
+   ```bash
+   curl -d '{"url":"https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4","meta":{"name":"BigBuckBunny.mp4"}}' \
+   -H "Authorization: Bearer VkKc0w2hhUqrbySCnApq4VUPMQ2uwhPu-K6iKd8U" \
+   https://api.cloudflare.com/client/v4/accounts/082f1807a28d7fae285e3da0fcb28669/stream/copy
+   ```
+   **Result:** 200 OK, Video UID: `32b816a23a7960d4922128e9145f9f7a`
+
+**❌ NOT WORKING:**
+1. **`/stream` Endpoint for Direct Creator Uploads** - Returns "No route for that URI" or authentication errors
+2. **Direct Creator Uploads API** - The endpoint we need for user uploads is not working as expected
+3. **Sample Video URLs** - Some URLs don't support HEAD/GET range requests required by Cloudflare
+
+**Key Findings:**
+- **Authentication is perfect** - API token and account ID work correctly
+- **Stream service is enabled** - No setup issues on Cloudflare side
+- **`/stream/copy` works** - Can copy videos from public URLs successfully
+- **Direct Creator Uploads needs different approach** - The `/stream` endpoint doesn't work for creating upload URLs
+
+**Current Status:**
+- ✅ Cloudflare Stream is properly configured
+- ✅ API authentication works
+- ✅ Video copying from URLs works
+- ❌ Direct Creator Uploads endpoint needs investigation
+- ✅ Transcription URLs will work once we get videos uploaded
+
+**Next Steps:**
+1. **Research Direct Creator Uploads** - Find the correct endpoint for creating upload URLs
+2. **Test with working video URLs** - Use URLs that support HEAD/GET range requests
+3. **Implement proper upload flow** - Once we find the correct endpoint
+
+**Prevention:**
+- Always test API endpoints with cURL before implementing in code
+- Verify video URLs support required HTTP methods (HEAD, GET range)
+- Document working vs. non-working endpoints for future reference
+
 ## CRITICAL DISCOVERY: Transcription Changes Breaking Video System
 
 ### Problem: Every transcription fix breaks video playback
