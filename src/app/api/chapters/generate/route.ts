@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract plain text from SRT
-    const transcript = extractTextFromSRT(video.srt_url)
+    const transcript = extractTextFromSRT(video.srt_url || '')
     
     // Generate chapters
     const chapters = generateChapters(transcript)
@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
 }
 
 function extractTextFromSRT(srtContent: string): string {
+  if (!srtContent) return ''
+  
   // Remove SRT timestamps and formatting, keep only text
   return srtContent
     .replace(/\d+\n/g, '') // Remove subtitle numbers

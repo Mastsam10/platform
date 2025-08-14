@@ -23,7 +23,24 @@ export async function POST(request: NextRequest) {
 
     // Handle video.asset.ready event
     if (type === 'video.asset.ready') {
-      const { asset_id, duration, playback_id, videoId } = data
+      const { asset_id, duration, playback_id } = data
+      
+      // Find video by asset_id since we don't have videoId in webhook
+      const { data: video, error: videoError } = await supabase
+        .from('videos')
+        .select('id')
+        .eq('asset_id', asset_id)
+        .single()
+        
+      if (videoError || !video) {
+        console.error('Video not found for asset_id:', asset_id)
+        return NextResponse.json(
+          { error: 'Video not found' },
+          { status: 404 }
+        )
+      }
+      
+      const videoId = video.id
 
       // Update video record with playback information
       const { error } = await supabase

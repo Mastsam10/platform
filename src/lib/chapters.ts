@@ -164,21 +164,33 @@ export function generateChapters(transcript: string, startTime: number = 0) {
   const scriptureRefs = detectScriptureReferences(transcript, startTime)
   const topics = detectTopics(transcript)
   
+  // Calculate estimated time positions based on transcript length
+  const words = transcript.split(' ').length
+  const estimatedDuration = Math.max(words * 0.5, 60) // Rough estimate: 0.5 seconds per word, minimum 60s
+  
   const chapters = [
-    ...scriptureRefs.map(ref => ({
-      start_s: ref.start_s,
-      end_s: ref.start_s + 30, // Assume 30 seconds per reference
-      title: ref.fullReference,
-      type: 'passage' as const,
-      value: ref.fullReference
-    })),
-    ...topics.map(topic => ({
-      start_s: startTime,
-      end_s: startTime + 60,
-      title: topic.charAt(0).toUpperCase() + topic.slice(1),
-      type: 'topic' as const,
-      value: topic
-    }))
+    ...scriptureRefs.map((ref, index) => {
+      // Distribute scripture references across the estimated duration
+      const timePosition = Math.floor((index / Math.max(scriptureRefs.length, 1)) * estimatedDuration)
+      return {
+        start_s: timePosition,
+        end_s: timePosition + 30, // Assume 30 seconds per reference
+        title: ref.fullReference,
+        type: 'passage' as const,
+        value: ref.fullReference
+      }
+    }),
+    ...topics.map((topic, index) => {
+      // Distribute topics across the estimated duration
+      const timePosition = Math.floor((index / Math.max(topics.length, 1)) * estimatedDuration)
+      return {
+        start_s: timePosition,
+        end_s: timePosition + 60,
+        title: topic.charAt(0).toUpperCase() + topic.slice(1),
+        type: 'topic' as const,
+        value: topic
+      }
+    })
   ]
   
   return chapters.sort((a, b) => a.start_s - b.start_s)

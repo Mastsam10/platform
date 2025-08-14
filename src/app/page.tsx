@@ -75,6 +75,16 @@ export default function Home() {
           <h2 className="text-2xl font-bold mb-4">Get Started</h2>
           <AuthButton />
         </div>
+
+        {/* Test Link */}
+        <div className="text-center mt-8">
+          <a 
+            href="/test" 
+            className="inline-block px-6 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Test Platform Features
+          </a>
+        </div>
       </div>
     </main>
   )

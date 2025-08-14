@@ -76,8 +76,15 @@ export async function POST(request: NextRequest) {
     // Initialize Mux upload
     try {
       console.log('Initializing Mux upload...')
-      console.log('MUX_TOKEN_ID exists:', !!process.env.MUX_TOKEN_ID)
-      console.log('MUX_TOKEN_SECRET exists:', !!process.env.MUX_TOKEN_SECRET)
+      
+      // Check if Mux credentials are configured
+      if (!process.env.MUX_TOKEN_ID || !process.env.MUX_TOKEN_SECRET) {
+        console.error('Mux credentials not configured')
+        return NextResponse.json(
+          { error: 'Video upload service not configured. Please contact administrator.' },
+          { status: 503 }
+        )
+      }
       
       const upload = await Video.uploads.create({
         new_asset_settings: {
@@ -86,10 +93,12 @@ export async function POST(request: NextRequest) {
         cors_origin: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
       })
 
-      // Update video record with Mux asset ID
+      // Store Mux asset ID for later webhook processing
       await supabase
         .from('videos')
-        .update({ playback_id: upload.asset_id })
+        .update({ 
+          asset_id: upload.asset_id
+        })
         .eq('id', video.id)
 
       return NextResponse.json({
