@@ -11,10 +11,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { provider, type, data } = body
+    console.log('Webhook payload:', JSON.stringify(body, null, 2))
+    
+    // Mux webhook structure: { type, data, ... }
+    const { type, data } = body
 
     // Validate webhook
-    if (!provider || !type || !data) {
+    if (!type || !data) {
+      console.error('Invalid webhook payload:', body)
       return NextResponse.json(
         { error: 'Invalid webhook payload' },
         { status: 400 }
