@@ -58,6 +58,21 @@ export async function POST(request: NextRequest) {
           console.log(`✅ Updated video ${updatedVideo.id} via upload_id with asset_id: ${asset_id}`)
         } else {
           console.log('❌ No video found with upload_id:', upload_id)
+          
+          // Fallback: try to find by asset_id and update status
+          const { data: videoByAsset, error: assetError } = await supabaseAdmin
+            .from('videos')
+            .select('id')
+            .eq('asset_id', asset_id)
+            .maybeSingle()
+            
+          if (videoByAsset && !assetError) {
+            await supabaseAdmin
+              .from('videos')
+              .update({ status: 'processing' })
+              .eq('id', videoByAsset.id)
+            console.log(`✅ Updated video ${videoByAsset.id} status to processing (by asset_id)`)
+          }
         }
       }
     }
