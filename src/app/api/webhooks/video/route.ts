@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     console.log('Webhook payload:', JSON.stringify(body, null, 2))
+    console.log('Webhook type:', type)
     
     // Mux webhook structure: { type, data, ... }
     const { type, data } = body
@@ -25,7 +26,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Handle video.asset.ready event
+    // Handle video.asset.created event (when asset is created but not ready)
+    if (type === 'video.asset.created') {
+      const { asset_id, upload_id } = data
+      console.log(`Asset created: ${asset_id} for upload: ${upload_id}`)
+      
+      // For now, just log the asset creation
+      // We'll need to add upload_id column to videos table later
+      console.log(`Asset ${asset_id} created for upload ${upload_id}`)
+    }
+
+    // Handle video.asset.ready event (when video is fully processed)
     if (type === 'video.asset.ready') {
       const { asset_id, duration, playback_id } = data
       
