@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
       const { duration, playback_id } = data
       
       console.log(`✅ HANDLED: Asset ready: ${asset_id}, duration: ${duration}, playback_id: ${playback_id}`)
+      console.log('Full data object:', JSON.stringify(data, null, 2))
       
       // Find video by asset_id
       const { data: video, error: videoError } = await supabaseAdmin
