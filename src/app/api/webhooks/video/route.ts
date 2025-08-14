@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
 
     // Handle video.asset.ready event (when video is fully processed)
     if (type === 'video.asset.ready') {
+      console.log('🎉 VIDEO.ASSET.READY WEBHOOK RECEIVED!')
       // The asset_id is in the 'id' field for ready events
       const asset_id = data.id
       const { duration, playback_id } = data
