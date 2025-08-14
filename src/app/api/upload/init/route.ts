@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Create video record in database with asset_id already set
+    console.log(`Creating video record with asset_id: ${upload.asset_id}`)
     const { data: video, error } = await supabase
       .from('videos')
       .insert({
@@ -92,6 +93,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    console.log(`Video record created: ${video.id} with asset_id: ${upload.asset_id}`)
 
     return NextResponse.json({
       uploadUrl: upload.url,

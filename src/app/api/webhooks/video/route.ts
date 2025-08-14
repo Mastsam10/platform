@@ -90,15 +90,34 @@ export async function POST(request: NextRequest) {
       
       console.log(`Asset ready: ${asset_id}, duration: ${duration}, playback_id: ${playback_id}`)
       
-      // Find video by asset_id since we don't have videoId in webhook
-      const { data: video, error: videoError } = await supabase
-        .from('videos')
-        .select('id')
-        .eq('asset_id', asset_id)
-        .single()
+      // Find video by asset_id with retry logic for timing issues
+      let video = null
+      let videoError = null
+      
+      // Try up to 3 times with 1 second delay between attempts
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { data: videoData, error: errorData } = await supabase
+          .from('videos')
+          .select('id')
+          .eq('asset_id', asset_id)
+          .single()
+        
+        video = videoData
+        videoError = errorData
+        
+        if (video && !videoError) {
+          console.log(`Found video on attempt ${attempt}: ${video.id}`)
+          break
+        }
+        
+        if (attempt < 3) {
+          console.log(`Video not found on attempt ${attempt}, retrying in 1 second...`)
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+      }
         
       if (videoError || !video) {
-        console.error('Video not found for asset_id:', asset_id)
+        console.error('Video not found for asset_id after 3 attempts:', asset_id)
         return NextResponse.json(
           { error: 'Video not found' },
           { status: 404 }
