@@ -59,11 +59,15 @@ create table videos(
   channel_id uuid references channels(id),
   title text not null, 
   description text,
-  status text check (status in ('draft','ready')) default 'draft',
+  status text check (status in ('draft','processing','ready')) default 'draft',
   playback_id text, 
   duration_s int, 
   published_at timestamptz, 
-  srt_url text
+  srt_url text,
+  created_at timestamptz default now(),
+  asset_id text,
+  aspect_ratio text default '16/9',
+  upload_id text
 );
 
 -- Video tags table
@@ -75,9 +79,40 @@ create table video_tags(
   start_s int
 );
 
--- Indexes
-create index on video_tags(video_id, type, value);
-create index on videos(channel_id, published_at DESC);
+-- Tips table
+create table tips(
+  id uuid primary key default gen_random_uuid(),
+  video_id uuid references videos(id),
+  user_id uuid references users(id),
+  amount_cents int not null,
+  currency text default 'usd',
+  stripe_payment_id text,
+  created_at timestamptz default now()
+);
+
+-- Memberships table
+create table memberships(
+  id uuid primary key default gen_random_uuid(),
+  channel_id uuid references channels(id),
+  user_id uuid references users(id),
+  plan_id text,
+  status text,
+  stripe_sub_id text,
+  started_at timestamptz default now(),
+  ended_at timestamptz
+);
+
+-- Reports table
+create table reports(
+  id uuid primary key default gen_random_uuid(),
+  object_type text,
+  object_id uuid,
+  reason text,
+  user_id uuid references users(id),
+  status text default 'new',
+  action text,
+  created_at timestamptz default now()
+);
 
 -- Denominations table
 create table denominations(
@@ -85,3 +120,10 @@ create table denominations(
   name text not null, 
   slug text unique not null
 );
+
+-- Indexes
+create index on video_tags(video_id, type, value);
+create index on videos(channel_id, published_at DESC);
+create index on tips(video_id, created_at DESC);
+create index on memberships(channel_id, user_id);
+create index on reports(object_type, object_id, status);
