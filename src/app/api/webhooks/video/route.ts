@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
         .single()
         
       if (video && !videoError) {
-        await supabase
+        await supabaseAdmin
           .from('videos')
           .update({ status: 'processing' })
           .eq('id', video.id)
