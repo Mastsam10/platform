@@ -5,8 +5,6 @@ export async function POST(request: NextRequest) {
   try {
     console.log('=== WEBHOOK ENDPOINT ACCESSED ===')
     console.log('Timestamp:', new Date().toISOString())
-    console.log('User-Agent:', request.headers.get('user-agent'))
-    console.log('Content-Type:', request.headers.get('content-type'))
     
     // Verify webhook signature (optional but recommended)
     const signature = request.headers.get('mux-signature')
@@ -16,9 +14,6 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    console.log('Webhook payload:', JSON.stringify(body, null, 2))
-    
-    // Mux webhook structure: { type, data, ... }
     const { type, data } = body
     console.log('Webhook type:', type)
 
@@ -35,7 +30,7 @@ export async function POST(request: NextRequest) {
     if (type === 'video.upload.created') {
       const { id: upload_id } = data
       console.log(`Upload created: ${upload_id}`)
-      // We could store upload_id in videos table for better tracking
+      // No action needed - video record already created with upload_id
     }
 
     // Handle video.upload.asset_created event (when asset is created from upload)
@@ -58,45 +53,11 @@ export async function POST(request: NextRequest) {
           console.log(`✅ Updated video ${updatedVideo.id} via upload_id with asset_id: ${asset_id}`)
         } else {
           console.log('❌ No video found with upload_id:', upload_id)
-          
-          // Fallback: try to find by asset_id and update status
-          const { data: videoByAsset, error: assetError } = await supabaseAdmin
-            .from('videos')
-            .select('id')
-            .eq('asset_id', asset_id)
-            .maybeSingle()
-            
-          if (videoByAsset && !assetError) {
-            await supabaseAdmin
-              .from('videos')
-              .update({ status: 'processing' })
-              .eq('id', videoByAsset.id)
-            console.log(`✅ Updated video ${videoByAsset.id} status to processing (by asset_id)`)
-          }
         }
       }
     }
 
-    // Handle video.asset.created event (when asset is created independently)
-    if (type === 'video.asset.created') {
-      const { id: asset_id } = data
-      console.log(`Asset created: ${asset_id}`)
-      
-      // Find video by asset_id
-      const { data: video, error: videoError } = await supabaseAdmin
-        .from('videos')
-        .select('id')
-        .eq('asset_id', asset_id)
-        .single()
-        
-      if (video && !videoError) {
-        await supabaseAdmin
-          .from('videos')
-          .update({ status: 'processing' })
-          .eq('id', video.id)
-        console.log(`Updated video ${video.id} status to 'processing'`)
-      }
-    }
+
 
     // Handle video.asset.ready event (when video is fully processed)
     if (type === 'video.asset.ready') {
@@ -190,7 +151,6 @@ export async function POST(request: NextRequest) {
     // Log any other webhook events we're not handling
     if (type !== 'video.upload.created' && 
         type !== 'video.upload.asset_created' && 
-        type !== 'video.asset.created' && 
         type !== 'video.asset.ready') {
       console.log(`Unhandled webhook event: ${type}`, data)
     }
