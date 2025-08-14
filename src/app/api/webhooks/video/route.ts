@@ -224,31 +224,32 @@ export async function POST(request: NextRequest) {
             }),
           })
 
-        if (transcriptResponse.ok) {
-          const transcriptData = await transcriptResponse.json()
-          console.log(`Transcript generated for video ${videoId}`)
-          
-          // Trigger chapter generation after transcript is ready
-          if (transcriptData.srt) {
-            const chapterResponse = await fetch(`${baseUrl}/api/chapters/generate`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                videoId,
-                srtUrl: transcriptData.srt
-              }),
-            })
+          if (transcriptResponse.ok) {
+            const transcriptData = await transcriptResponse.json()
+            console.log(`Transcript generated for video ${videoId}`)
+            
+            // Trigger chapter generation after transcript is ready
+            if (transcriptData.srt) {
+              const chapterResponse = await fetch(`${baseUrl}/api/chapters/generate`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  videoId,
+                  srtUrl: transcriptData.srt
+                }),
+              })
 
-            if (chapterResponse.ok) {
-              const chapterData = await chapterResponse.json()
-              console.log(`Generated ${chapterData.count} chapters for video ${videoId}`)
+              if (chapterResponse.ok) {
+                const chapterData = await chapterResponse.json()
+                console.log(`Generated ${chapterData.count} chapters for video ${videoId}`)
+              }
             }
           }
+        } catch (transcriptError) {
+          console.error('Failed to trigger transcript generation:', transcriptError)
         }
-      } catch (transcriptError) {
-        console.error('Failed to trigger transcript generation:', transcriptError)
       }
       
       console.log(`Video ${videoId} is ready for playback`)
