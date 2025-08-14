@@ -22,17 +22,14 @@ export async function GET(request: NextRequest) {
     
     // Test Cloudflare API connection
     console.log('Testing Cloudflare API connection...')
-    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/stream`, {
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/stream/direct_upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        maxDurationSeconds: 60, // Short test video
-        meta: {
-          name: 'Test Video'
-        }
+        maxDurationSeconds: 60 // Short test video
       })
     })
     

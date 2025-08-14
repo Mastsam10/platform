@@ -47,29 +47,39 @@ export class CloudflareStream {
 
   /**
    * Create a direct upload URL for Cloudflare Stream
-   * For now, we'll use a placeholder approach since the /stream endpoint
-   * doesn't seem to work for creating upload URLs as expected
+   * Based on Cloudflare Stream Direct Creator Uploads documentation
+   * https://developers.cloudflare.com/stream/uploading-videos/direct-creator-uploads/
    */
   async createUpload(title: string): Promise<CloudflareUploadResponse> {
     try {
       console.log('Creating Cloudflare Stream upload URL...')
       
-      // For now, we'll use a placeholder approach since Direct Creator Uploads
-      // requires a different endpoint structure than what we've tested
-      // The /stream endpoint we tried doesn't work for creating upload URLs
-      // The /stream/copy endpoint works for copying from URLs (tested successfully)
+      // The correct endpoint for Direct Creator Uploads
+      const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/direct_upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          maxDurationSeconds: 3600
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.text()
+        console.error('Cloudflare upload creation failed:', error)
+        throw new Error(`Cloudflare upload creation failed: ${error}`)
+      }
+
+      const data = await response.json()
+      console.log('Cloudflare upload created successfully:', data.result.uid)
       
-      // Generate a temporary UID for now
-      const tempUid = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      
-      console.log('Using placeholder upload URL for now')
-      
-      // Return a mock response that matches our interface
       return {
         success: true,
         result: {
-          uploadURL: `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/${tempUid}/upload`,
-          uid: tempUid
+          uploadURL: data.result.uploadURL,
+          uid: data.result.uid
         }
       }
     } catch (error) {

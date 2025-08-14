@@ -278,54 +278,82 @@ Mux's streaming URLs (`https://stream.mux.com/...`) are **not publicly accessibl
 - Consider video hosting service limitations when designing transcription pipeline
 - Document URL accessibility requirements for external services
 
-## CRITICAL DISCOVERY: Cloudflare Stream Setup and API Testing
+## CRITICAL DISCOVERY: Cloudflare Stream Direct Creator Uploads Implementation
 
-### Problem: Cloudflare Stream API endpoints and authentication
+### Problem: Cloudflare Stream Direct Creator Uploads API implementation
 
 **Discovery Date:** August 14, 2024
 
-**What We Tested:**
+**✅ SOLVED: Direct Creator Uploads Implementation**
 
-**✅ WORKING:**
-1. **API Token Authentication** - Token `VkKc0w2hhUqrbySCnApq4VUPMQ2uwhPu-K6iKd8U` is valid and active (when used directly)
-2. **Environment Variable Issue** - Token in `.env.local` is truncated: `VkKc0w2hhUqrbySCnApq4VUPMQ2uwhPu` (missing `-K6iKd8U` suffix)
-2. **Account ID** - `082f1807a28d7fae285e3da0fcb28669` is correct
-3. **Stream Service** - Cloudflare Stream is enabled and working
-4. **`/stream/copy` Endpoint** - Successfully copied video from URL:
-   ```bash
-   curl -d '{"url":"https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4","meta":{"name":"BigBuckBunny.mp4"}}' \
-   -H "Authorization: Bearer VkKc0w2hhUqrbySCnApq4VUPMQ2uwhPu-K6iKd8U" \
-   https://api.cloudflare.com/client/v4/accounts/082f1807a28d7fae285e3da0fcb28669/stream/copy
+**Root Cause:**
+The issue was using the wrong API endpoint. We were trying to use `/stream` instead of the correct `/stream/direct_upload` endpoint for Direct Creator Uploads.
+
+**The Correct Implementation:**
+
+1. **Correct Endpoint:** `/stream/direct_upload` (not `/stream`)
+2. **Correct Method:** POST
+3. **Correct Request Body:**
+   ```json
+   {
+     "maxDurationSeconds": 3600
+   }
    ```
-   **Result:** 200 OK, Video UID: `32b816a23a7960d4922128e9145f9f7a`
 
-**❌ NOT WORKING:**
-1. **`/stream` Endpoint for Direct Creator Uploads** - Returns "No route for that URI" or authentication errors
-2. **Direct Creator Uploads API** - The endpoint we need for user uploads is not working as expected
-3. **Sample Video URLs** - Some URLs don't support HEAD/GET range requests required by Cloudflare
+**Working Implementation:**
+```typescript
+// In src/lib/cloudflare.ts
+async createUpload(title: string): Promise<CloudflareUploadResponse> {
+  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/direct_upload`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${this.apiToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      maxDurationSeconds: 3600
+    })
+  })
+  
+  const data = await response.json()
+  return {
+    success: true,
+    result: {
+      uploadURL: data.result.uploadURL,
+      uid: data.result.uid
+    }
+  }
+}
+```
 
-**Key Findings:**
-- **Authentication is perfect** - API token and account ID work correctly
-- **Stream service is enabled** - No setup issues on Cloudflare side
-- **`/stream/copy` works** - Can copy videos from public URLs successfully
-- **Direct Creator Uploads needs different approach** - The `/stream` endpoint doesn't work for creating upload URLs
+**Frontend Upload Flow:**
+1. **Step 1:** Call `/api/upload/init` to get upload URL and video ID
+2. **Step 2:** Upload file directly to Cloudflare Stream using FormData
+3. **Step 3:** Cloudflare processes video and sends webhook when ready
+
+**Test Results:**
+- ✅ API endpoint works: Returns `uploadURL` and `uid`
+- ✅ Upload flow works: Files upload successfully to Cloudflare Stream
+- ✅ Video processing: Cloudflare processes videos and makes them available
+- ✅ Transcription ready: Videos are accessible via public URLs for Deepgram
+
+**Key Insights:**
+- **Direct Creator Uploads** is the correct approach for user uploads
+- **200MB limit** for basic uploads (no resumable uploads needed)
+- **FormData upload** to the returned `uploadURL`
+- **Webhook processing** handles video status updates automatically
 
 **Current Status:**
-- ✅ Cloudflare Stream is properly configured
-- ✅ API authentication works
-- ✅ Video copying from URLs works
-- ❌ Direct Creator Uploads endpoint needs investigation
-- ✅ Transcription URLs will work once we get videos uploaded
-
-**Next Steps:**
-1. **Research Direct Creator Uploads** - Find the correct endpoint for creating upload URLs
-2. **Test with working video URLs** - Use URLs that support HEAD/GET range requests
-3. **Implement proper upload flow** - Once we find the correct endpoint
+- ✅ Cloudflare Stream Direct Creator Uploads working
+- ✅ Frontend upload component implemented
+- ✅ Complete upload flow functional
+- ✅ Ready for transcription and chapter generation
 
 **Prevention:**
-- Always test API endpoints with cURL before implementing in code
-- Verify video URLs support required HTTP methods (HEAD, GET range)
-- Document working vs. non-working endpoints for future reference
+- Always use `/stream/direct_upload` endpoint for Direct Creator Uploads
+- Follow official Cloudflare Stream documentation exactly
+- Test API endpoints with cURL before implementing in code
+- Use FormData for file uploads to Cloudflare Stream URLs
 
 ## CRITICAL DISCOVERY: Transcription Changes Breaking Video System
 
