@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Handle video.upload.asset_created event (when asset is created from upload)
     if (type === 'video.upload.asset_created') {
       const { asset_id, upload_id } = data
-      console.log(`Asset created from upload: ${asset_id} for upload: ${upload_id}`)
+      console.log(`✅ HANDLED: Asset created from upload: ${asset_id} for upload: ${upload_id}`)
       
       // Find video by asset_id or update videos with null asset_id
       if (asset_id) {
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       const asset_id = data.id
       const { duration, playback_id } = data
       
-      console.log(`Asset ready: ${asset_id}, duration: ${duration}, playback_id: ${playback_id}`)
+      console.log(`✅ HANDLED: Asset ready: ${asset_id}, duration: ${duration}, playback_id: ${playback_id}`)
       
       // Find video by asset_id with retry logic for timing issues
       let video = null
@@ -215,7 +215,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Log any other webhook events we're not handling
-    if (type !== 'video.asset.created' && type !== 'video.asset.ready') {
+    if (type !== 'video.upload.created' && 
+        type !== 'video.upload.asset_created' && 
+        type !== 'video.asset.created' && 
+        type !== 'video.asset.ready') {
       console.log(`Unhandled webhook event: ${type}`, data)
     }
 
