@@ -207,6 +207,42 @@ The webhook system works perfectly when videos are in the correct "processing" s
 - Let the webhook system handle the final "ready" state
 - The webhook correlation works correctly when videos are in "processing" state
 
+## CRITICAL DISCOVERY: Transcription URL Issue
+
+### Problem: Deepgram 404 errors when trying to transcribe videos
+
+**Discovery Date:** August 14, 2024
+
+**Root Cause:**
+The transcription system was trying to use `asset_id` as a fallback when `playback_id` was not available, but **Mux asset_ids do not work with stream URLs**. Only `playback_ids` can be used with `https://stream.mux.com/` URLs.
+
+**The Broken Logic:**
+```typescript
+// WRONG - asset_id doesn't work with stream URLs
+const muxId = video.playback_id || video.asset_id
+const downloadUrl = `https://stream.mux.com/${muxId}/high.mp4`
+```
+
+**The Fix:**
+```typescript
+// CORRECT - only use playback_id for stream URLs
+if (!video.playback_id) {
+  return NextResponse.json(
+    { error: 'Video not ready for transcription - missing playback_id' },
+    { status: 400 }
+  )
+}
+const downloadUrl = `https://stream.mux.com/${video.playback_id}/high.mp4`
+```
+
+**Key Insight:**
+Transcription can only work when videos have a valid `playback_id`. Videos in "processing" state without `playback_id` cannot be transcribed until the webhook processes them correctly.
+
+**Prevention:**
+- Only trigger transcription for videos with valid `playback_id`
+- Never use `asset_id` for stream URLs
+- Ensure webhook processes videos completely before transcription
+
 ## General Debugging
 
 ### Useful Debug Endpoints

@@ -208,20 +208,21 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Trigger transcript generation
-      try {
-        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-gamma-flax.vercel.app'
-        const transcriptResponse = await fetch(`${baseUrl}/api/transcripts/start`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            videoId,
-            provider: 'deepgram',
-            lang: 'en'
-          }),
-        })
+      // Trigger transcript generation only if we have a valid playback_id
+      if (playback_id) {
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-gamma-flax.vercel.app'
+          const transcriptResponse = await fetch(`${baseUrl}/api/transcripts/start`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              videoId,
+              provider: 'deepgram',
+              lang: 'en'
+            }),
+          })
 
         if (transcriptResponse.ok) {
           const transcriptData = await transcriptResponse.json()

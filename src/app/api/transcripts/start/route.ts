@@ -28,16 +28,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!video.playback_id && !video.asset_id) {
+    if (!video.playback_id) {
       return NextResponse.json(
-        { error: 'Video not ready for transcription' },
+        { error: 'Video not ready for transcription - missing playback_id' },
         { status: 400 }
       )
     }
 
-    // Use playback_id if available, otherwise use asset_id
-    const muxId = video.playback_id || video.asset_id
-    const downloadUrl = `https://stream.mux.com/${muxId}/high.mp4`
+    // Only use playback_id for stream URL - asset_id doesn't work with stream URLs
+    const downloadUrl = `https://stream.mux.com/${video.playback_id}/high.mp4`
 
     try {
       // Start Deepgram transcription
