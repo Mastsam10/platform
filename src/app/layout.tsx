@@ -20,7 +20,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning={true}>
       <body className={inter.className} suppressHydrationWarning={true}>
         <DarkModeProvider>
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+          <div className="relative min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
             <DarkModeToggle />
             {children}
           </div>
