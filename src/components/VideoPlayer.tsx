@@ -13,6 +13,9 @@ interface VideoPlayerProps {
 export default function VideoPlayer({ playbackId, title, className = '', aspectRatio = '16/9' }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
+  
+  // Debug logging
+  console.log('VideoPlayer props:', { playbackId, title, className, aspectRatio })
 
   useEffect(() => {
     if (videoRef.current && playbackId) {
