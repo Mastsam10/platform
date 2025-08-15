@@ -206,7 +206,7 @@ function toVttAndText(dg: any) {
       });
     }
   } else {
-    paras.forEach(p => {
+    paras.forEach((p: any) => {
       vtt += `${sec(p.start)} --> ${sec(p.end)}\n${p.transcript.trim()}\n\n`;
       plain += p.transcript.trim() + '\n';
     });
