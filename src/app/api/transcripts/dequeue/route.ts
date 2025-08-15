@@ -198,12 +198,22 @@ export async function POST(request: NextRequest) {
 
 async function markJobAsError(jobId: string, error: string) {
   try {
+    // First get current attempts count
+    const { data: currentJob } = await supabaseAdmin
+      .from('transcript_jobs')
+      .select('attempts')
+      .eq('id', jobId)
+      .single()
+
+    const currentAttempts = currentJob?.attempts || 0
+    const newAttempts = currentAttempts + 1
+
     await supabaseAdmin
       .from('transcript_jobs')
       .update({
         status: 'error',
         error: error,
-        attempts: supabaseAdmin.raw('attempts + 1'),
+        attempts: newAttempts,
         next_attempt_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutes from now
         updated_at: new Date().toISOString()
       })

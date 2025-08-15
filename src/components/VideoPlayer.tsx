@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useEffect } from 'react'
-import Hls from 'hls.js'
 
 interface VideoPlayerProps {
   playbackId: string
@@ -12,7 +11,7 @@ interface VideoPlayerProps {
 
 export default function VideoPlayer({ playbackId, title, className = '', aspectRatio = '16/9' }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const hlsRef = useRef<Hls | null>(null)
+  const hlsRef = useRef<any>(null)
   
   useEffect(() => {
     if (videoRef.current && playbackId) {
@@ -23,22 +22,27 @@ export default function VideoPlayer({ playbackId, title, className = '', aspectR
       if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Native HLS support (Safari)
         videoRef.current.src = videoUrl
-      } else if (Hls.isSupported()) {
-        // Use HLS.js for other browsers
-        if (hlsRef.current) {
-          hlsRef.current.destroy()
-        }
-        
-        hlsRef.current = new Hls()
-        hlsRef.current.loadSource(videoUrl)
-        hlsRef.current.attachMedia(videoRef.current)
-        
-        hlsRef.current.on(Hls.Events.ERROR, (event, data) => {
-          console.error('HLS error:', data)
-        })
       } else {
-        // Fallback for browsers that don't support HLS
-        console.warn('HLS not supported in this browser')
+        // Use HLS.js for other browsers - dynamic import to avoid build issues
+        import('hls.js').then((Hls) => {
+          if (Hls.default.isSupported()) {
+            if (hlsRef.current) {
+              hlsRef.current.destroy()
+            }
+            
+            hlsRef.current = new Hls.default()
+            hlsRef.current.loadSource(videoUrl)
+            hlsRef.current.attachMedia(videoRef.current)
+            
+            hlsRef.current.on(Hls.default.Events.ERROR, (event: any, data: any) => {
+              console.error('HLS error:', data)
+            })
+          } else {
+            console.warn('HLS not supported in this browser')
+          }
+        }).catch((error) => {
+          console.error('Failed to load HLS.js:', error)
+        })
       }
     }
 
