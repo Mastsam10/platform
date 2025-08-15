@@ -110,6 +110,29 @@ export async function POST(request: NextRequest) {
         console.log(`✅ Transcription job created: ${job.id} for video ${video.id}`)
         console.log(`📋 Job status: ${job.status}, next attempt: ${job.next_attempt_at}`)
 
+        // Trigger immediate transcription processing
+        try {
+          console.log(`🚀 Triggering immediate transcription for video ${video.id}`)
+          
+          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-bndkdrhkg-samuel-yus-projects-88ba4e57.vercel.app'
+          const response = await fetch(`${baseUrl}/api/transcripts/dequeue`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          })
+
+          if (response.ok) {
+            const result = await response.json()
+            console.log(`✅ Immediate transcription triggered successfully:`, result)
+          } else {
+            console.error(`❌ Failed to trigger immediate transcription:`, await response.text())
+          }
+        } catch (triggerError) {
+          console.error(`❌ Error triggering immediate transcription:`, triggerError)
+          // Don't fail the webhook - transcription will still happen via cron
+        }
+
         // Note: Chapter generation will be triggered after transcription is complete
         // via the Deepgram webhook handler, not here
         
@@ -119,7 +142,7 @@ export async function POST(request: NextRequest) {
         // The job can be created later via manual retry
       }
       
-      console.log(`🎉 Video ${video.id} is ready for playback and transcription queued`)
+      console.log(`🎉 Video ${video.id} is ready for playback and transcription processing started`)
     } else if (status?.state === 'error') {
       console.error(`❌ Cloudflare Stream video ${uid} failed to process:`, body)
       console.error(`Error reason: ${status?.errReasonCode} - ${status?.errReasonText}`)
