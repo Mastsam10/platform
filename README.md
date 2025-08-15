@@ -1,6 +1,8 @@
-# Platform - Christian Video Discovery
+# Platform
 
-A Next.js-based platform for discovering and watching Christian videos with scripture-aware chapters and local church discovery.
+A video platform with transcription capabilities.
+
+<!-- Deployment trigger: 2025-08-14 -->
 
 ## 🚀 Features
 
