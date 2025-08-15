@@ -7,7 +7,7 @@ export async function GET() {
     console.log('🧪 Testing upload initialization process...')
     
     // Test title
-    const title = 'Test Upload Init'
+    const title = 'Debug Upload Test'
     
     // Initialize Cloudflare Stream upload
     console.log('Creating Cloudflare upload...')
@@ -18,11 +18,20 @@ export async function GET() {
     console.log(`Video UID: ${upload.result.uid}`)
     
     // Get default channel
-    const { data: channel } = await supabase
+    console.log('Getting default channel...')
+    const { data: channel, error: channelError } = await supabase
       .from('channels')
       .select('id')
       .eq('slug', 'default-channel')
       .single()
+    
+    if (channelError) {
+      console.error('Channel error:', channelError)
+      return NextResponse.json(
+        { error: 'Failed to get default channel', details: channelError },
+        { status: 500 }
+      )
+    }
     
     if (!channel) {
       return NextResponse.json(
@@ -31,14 +40,16 @@ export async function GET() {
       )
     }
     
+    console.log(`Found channel: ${channel.id}`)
+    
     // Create video record in database
     console.log(`Creating video record with uid: ${upload.result.uid}`)
-    const { data: video, error } = await supabase
+    const { data: video, error: videoError } = await supabase
       .from('videos')
       .insert({
         channel_id: channel.id,
         title,
-        description: 'Test upload initialization',
+        description: 'Debug upload test',
         status: 'draft',
         asset_id: upload.result.uid,
         upload_id: upload.result.uid
@@ -46,10 +57,10 @@ export async function GET() {
       .select()
       .single()
     
-    if (error) {
-      console.error('Database error:', error)
+    if (videoError) {
+      console.error('Video creation error:', videoError)
       return NextResponse.json(
-        { error: 'Failed to create video record', details: error },
+        { error: 'Failed to create video record', details: videoError },
         { status: 500 }
       )
     }

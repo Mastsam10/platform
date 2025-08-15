@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { cloudflareStream } from '@/lib/cloudflare'
 
 export async function POST(request: NextRequest) {
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     // If no channelId provided, create a default channel for testing
     if (!channelId || channelId === 'temp-channel-id') {
       // Check if default channel exists
-      const { data: existingChannel } = await supabase
+      const { data: existingChannel } = await supabaseAdmin
         .from('channels')
         .select('id')
         .eq('slug', 'default-channel')
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
         actualChannelId = existingChannel.id
       } else {
         // Create default channel
-        const { data: newChannel, error: channelError } = await supabase
+        const { data: newChannel, error: channelError } = await supabaseAdmin
           .from('channels')
           .insert({
             type: 'creator',
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // Create video record in database
     console.log(`Creating video record with uid: ${upload.result.uid}`)
-    const { data: video, error } = await supabase
+    const { data: video, error } = await supabaseAdmin
       .from('videos')
       .insert({
         channel_id: actualChannelId,
