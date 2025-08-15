@@ -88,12 +88,23 @@ export async function POST(request: NextRequest) {
         }
 
         if (!video.playback_id) {
-          console.error(`❌ Video ${video.id} has no playback_id`)
-          await markJobAsError(job.id, 'Video has no playback_id')
+          console.error(`❌ Video ${video.id} has no playback_id - rescheduling job`)
+          // Reschedule the job for later instead of marking as error
+          await supabaseAdmin
+            .from('transcript_jobs')
+            .update({
+              status: 'queued',
+              attempts: job.attempts + 1,
+              next_attempt_at: new Date(Date.now() + 30000).toISOString(), // Retry in 30 seconds
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', job.id)
+          
           results.push({
             job_id: job.id,
             success: false,
-            error: 'Video has no playback_id'
+            error: 'Video not ready yet - rescheduled',
+            rescheduled: true
           })
           continue
         }
