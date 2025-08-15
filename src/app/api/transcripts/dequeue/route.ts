@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       .eq('status', 'queued')
       .lte('next_attempt_at', new Date().toISOString())
       .order('created_at', { ascending: true })
-      .limit(10) // Process up to 10 jobs at a time (maximize Hobby plan capacity)
+      .limit(3) // Process up to 3 jobs at a time
 
     if (jobsError) {
       console.error('❌ Failed to fetch jobs:', jobsError)
@@ -127,9 +127,8 @@ export async function POST(request: NextRequest) {
             language: 'en',
             smart_format: true,
             punctuate: true,
-            // Removed diarize and utterances for faster processing
-            // diarize: true,
-            // utterances: true
+            diarize: true,
+            utterances: true
           })
         })
 

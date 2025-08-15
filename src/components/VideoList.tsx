@@ -12,6 +12,7 @@ interface Video {
   duration_s?: number
   aspect_ratio?: string
   published_at?: string
+  srt_url?: string // Add SRT URL for captions
   channels?: {
     name: string
     denomination?: string
@@ -113,6 +114,7 @@ export default function VideoList() {
                   title={video.title}
                   className="w-full"
                   aspectRatio={video.aspect_ratio || '16/9'}
+                  srtUrl={video.srt_url} // Pass SRT URL for captions
                 />
               ) : (
                 <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 text-center">

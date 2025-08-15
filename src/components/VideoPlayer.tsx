@@ -1,17 +1,19 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 
 interface VideoPlayerProps {
   playbackId: string
   title?: string
   className?: string
   aspectRatio?: string
+  srtUrl?: string // Add SRT URL for captions
 }
 
-export default function VideoPlayer({ playbackId, title, className = '', aspectRatio = '16/9' }: VideoPlayerProps) {
+export default function VideoPlayer({ playbackId, title, className = '', aspectRatio = '16/9', srtUrl }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
+  const [showCaptions, setShowCaptions] = useState(true) // Default to showing captions like YouTube
   
   useEffect(() => {
     if (videoRef.current && playbackId) {
@@ -61,9 +63,31 @@ export default function VideoPlayer({ playbackId, title, className = '', aspectR
         className="w-full h-full rounded-lg"
         poster={`https://videodelivery.net/${playbackId}/thumbnails/thumbnail.jpg?time=0s`}
       >
-        <track kind="captions" />
+        {srtUrl && (
+          <track 
+            kind="subtitles"
+            src={srtUrl}
+            srcLang="en"
+            label="English"
+            default={showCaptions}
+          />
+        )}
         Your browser does not support the video tag.
       </video>
+      
+      {/* Caption Controls - YouTube-style */}
+      {srtUrl && (
+        <div className="absolute top-2 right-2 flex gap-2">
+          <button
+            onClick={() => setShowCaptions(!showCaptions)}
+            className="bg-black bg-opacity-70 text-white px-3 py-1 rounded text-sm hover:bg-opacity-90 transition-all"
+            title={showCaptions ? 'Hide Captions' : 'Show Captions'}
+          >
+            {showCaptions ? 'CC' : 'CC'}
+          </button>
+        </div>
+      )}
+      
       {title && (
         <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2 rounded-b-lg">
           <p className="text-sm font-medium">{title}</p>

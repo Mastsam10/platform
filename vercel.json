@@ -1,8 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/transcripts/dequeue",
-      "schedule": "0 2 * * *"
-    }
-  ]
+  "comment": "Cron job removed - using immediate webhook-based transcription processing"
 }
