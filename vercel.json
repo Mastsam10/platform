@@ -4,6 +4,5 @@
       "path": "/api/transcripts/dequeue",
       "schedule": "*/5 * * * *"
     }
-  ],
-  "comment": "Deployment trigger - 2025-08-14 19:30"
+  ]
 }
