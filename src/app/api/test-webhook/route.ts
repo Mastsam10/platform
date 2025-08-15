@@ -1,31 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function POST(request: NextRequest) {
-  try {
-    console.log('=== TEST WEBHOOK ENDPOINT ACCESSED ===')
-    
-    const body = await request.json()
-    console.log('Test webhook payload:', JSON.stringify(body, null, 2))
-    
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Test webhook received successfully',
-      timestamp: new Date().toISOString(),
-      received: body
-    })
-  } catch (error) {
-    console.error('Test webhook error:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
-  }
+export async function GET(request: NextRequest) {
+  return NextResponse.json({ 
+    message: 'Test webhook endpoint accessible',
+    timestamp: new Date().toISOString(),
+    headers: Object.fromEntries(request.headers.entries())
+  })
 }
 
-export async function GET() {
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => ({}))
   return NextResponse.json({ 
-    success: true, 
-    message: 'Test webhook endpoint is accessible',
-    timestamp: new Date().toISOString()
+    message: 'Test webhook POST endpoint accessible',
+    timestamp: new Date().toISOString(),
+    receivedBody: body,
+    headers: Object.fromEntries(request.headers.entries())
   })
 }
