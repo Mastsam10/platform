@@ -33,6 +33,8 @@ export async function POST(request: NextRequest) {
       console.warn('⚠️ No webhook signature or secret provided - skipping verification')
     }
     
+    // Parse the body as JSON
+    const payload = JSON.parse(body)
     console.log('Webhook payload:', JSON.stringify(payload, null, 2))
 
     // Cloudflare Stream webhook structure based on official documentation
