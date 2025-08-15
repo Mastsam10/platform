@@ -3,8 +3,8 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function GET() {
   try {
-    // The video "2" that was just uploaded
-    const cloudflareUid = '2078d70f4c28410bac24f1e84ee3fe3c'
+    // The video "3" that was just uploaded
+    const cloudflareUid = '57591f49e86b4facb951bc89603bbc15'
     
     console.log(`🔧 Creating video record for Cloudflare UID: ${cloudflareUid}`)
     
@@ -27,13 +27,13 @@ export async function GET() {
       .from('videos')
       .insert({
         channel_id: channel.id,
-        title: '2',
+        title: '3',
         description: 'Video uploaded via website',
         status: 'ready',
         asset_id: cloudflareUid,
         playback_id: cloudflareUid,
         upload_id: cloudflareUid,
-        duration_s: 69,
+        duration_s: 0, // Will be updated by webhook
         aspect_ratio: '16/9'
       })
       .select()
