@@ -3,8 +3,8 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function GET() {
   try {
-    // The video "3" that was just uploaded
-    const cloudflareUid = '57591f49e86b4facb951bc89603bbc15'
+    // The video "6" that was just uploaded - UID from the logs
+    const cloudflareUid = '17eb5b5f65d9471baaddcb95fdf49fbf'
     
     console.log(`🔧 Creating video record for Cloudflare UID: ${cloudflareUid}`)
     
@@ -27,7 +27,7 @@ export async function GET() {
       .from('videos')
       .insert({
         channel_id: channel.id,
-        title: '3',
+        title: '6',
         description: 'Video uploaded via website',
         status: 'ready',
         asset_id: cloudflareUid,
@@ -49,6 +49,15 @@ export async function GET() {
     
     console.log(`✅ Created video record: ${video.id} with correct asset_id: ${cloudflareUid}`)
     
+    // Immediately verify it exists
+    const { data: verifyVideo } = await supabaseAdmin
+      .from('videos')
+      .select('id, title, status, asset_id')
+      .eq('id', video.id)
+      .single()
+    
+    console.log(`🔍 Verification - Video exists: ${verifyVideo ? 'YES' : 'NO'}`)
+    
     return NextResponse.json({
       message: 'Video record created successfully',
       video: {
@@ -56,7 +65,8 @@ export async function GET() {
         title: video.title,
         asset_id: video.asset_id,
         status: video.status
-      }
+      },
+      verification: verifyVideo ? 'Video found in database' : 'Video NOT found in database'
     })
     
   } catch (error) {
