@@ -1,9 +1,20 @@
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { verifyCloudflareWebhookSignature } from '@/lib/webhookVerification'
 
+function dbFingerprint() {
+  return {
+    url: process.env.SUPABASE_URL,
+    project_ref: process.env.SUPABASE_URL?.split('https://')[1]?.split('.')[0],
+    using_service_key: !!process.env.SUPABASE_SERVICE_KEY,
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
+    console.log('[DB FINGERPRINT]', dbFingerprint())
     const timestamp = new Date().toISOString()
     console.log('=== CLOUDFLARE STREAM WEBHOOK ENDPOINT ACCESSED ===')
     console.log('Timestamp:', timestamp)
