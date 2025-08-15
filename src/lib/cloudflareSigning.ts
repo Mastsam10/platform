@@ -1,4 +1,4 @@
-import { createHmac, createSign } from 'crypto'
+import jwt from 'jsonwebtoken'
 
 export interface CloudflareStreamSigningConfig {
   accountId: string
@@ -8,9 +8,12 @@ export interface CloudflareStreamSigningConfig {
 
 export class CloudflareStreamSigning {
   private config: CloudflareStreamSigningConfig
+  private decodedSigningKey: string
 
   constructor(config: CloudflareStreamSigningConfig) {
     this.config = config
+    // Decode the base64-encoded private key
+    this.decodedSigningKey = Buffer.from(config.signingKey, 'base64').toString('utf8')
   }
 
   /**
@@ -24,11 +27,6 @@ export class CloudflareStreamSigning {
     const path = `/${uid}/downloads/default.mp4`
     
     // Create JWT payload
-    const header = {
-      alg: 'RS256',
-      kid: this.config.signingKeyId
-    }
-    
     const payload = {
       sub: path,
       exp: exp,
@@ -36,8 +34,11 @@ export class CloudflareStreamSigning {
       iss: this.config.accountId
     }
 
-    // Create JWT token
-    const token = this.createJWT(header, payload)
+    // Create JWT token using the decoded private key
+    const token = jwt.sign(payload, this.decodedSigningKey, {
+      algorithm: 'RS256',
+      keyid: this.config.signingKeyId
+    })
     
     return `https://videodelivery.net${path}?token=${token}`
   }
@@ -53,11 +54,6 @@ export class CloudflareStreamSigning {
     const path = `/${uid}/manifest/video.m3u8`
     
     // Create JWT payload
-    const header = {
-      alg: 'RS256',
-      kid: this.config.signingKeyId
-    }
-    
     const payload = {
       sub: path,
       exp: exp,
@@ -65,45 +61,13 @@ export class CloudflareStreamSigning {
       iss: this.config.accountId
     }
 
-    // Create JWT token
-    const token = this.createJWT(header, payload)
+    // Create JWT token using the decoded private key
+    const token = jwt.sign(payload, this.decodedSigningKey, {
+      algorithm: 'RS256',
+      keyid: this.config.signingKeyId
+    })
     
     return `https://videodelivery.net${path}?token=${token}`
-  }
-
-  /**
-   * Create JWT token for Cloudflare Stream
-   * @param header - JWT header
-   * @param payload - JWT payload
-   * @returns JWT token string
-   */
-  private createJWT(header: any, payload: any): string {
-    // Encode header and payload
-    const encodedHeader = this.base64UrlEncode(JSON.stringify(header))
-    const encodedPayload = this.base64UrlEncode(JSON.stringify(payload))
-    
-    // Create signature
-    const data = `${encodedHeader}.${encodedPayload}`
-    const signature = createSign('RSA-SHA256')
-      .update(data)
-      .sign(this.config.signingKey, 'base64')
-    
-    const encodedSignature = this.base64UrlEncode(signature)
-    
-    return `${data}.${encodedSignature}`
-  }
-
-  /**
-   * Base64 URL encoding (RFC 4648)
-   * @param str - String to encode
-   * @returns Base64 URL encoded string
-   */
-  private base64UrlEncode(str: string): string {
-    return Buffer.from(str)
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '')
   }
 
   /**
@@ -120,48 +84,16 @@ export class CloudflareStreamSigning {
         return false
       }
 
-      // Parse JWT token
-      const parts = token.split('.')
-      if (parts.length !== 3) {
-        return false
-      }
-
-      const [encodedHeader, encodedPayload, encodedSignature] = parts
+      // Verify JWT token using the decoded private key
+      const decoded = jwt.verify(token, this.decodedSigningKey, {
+        algorithms: ['RS256']
+      })
       
-      // Decode payload
-      const payload = JSON.parse(this.base64UrlDecode(encodedPayload))
-      
-      // Check expiration
-      const now = Math.floor(Date.now() / 1000)
-      if (payload.exp && payload.exp < now) {
-        return false
-      }
-
-      // Check not before
-      if (payload.nbf && payload.nbf > now) {
-        return false
-      }
-
-      return true
+      return !!decoded
     } catch (error) {
       console.error('Error verifying signed URL:', error)
       return false
     }
-  }
-
-  /**
-   * Base64 URL decoding
-   * @param str - Base64 URL encoded string
-   * @returns Decoded string
-   */
-  private base64UrlDecode(str: string): string {
-    // Add padding back
-    str = str.replace(/-/g, '+').replace(/_/g, '/')
-    while (str.length % 4) {
-      str += '='
-    }
-    
-    return Buffer.from(str, 'base64').toString()
   }
 }
 

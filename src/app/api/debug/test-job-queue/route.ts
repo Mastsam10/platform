@@ -1,142 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    console.log('Testing job queue database migration...')
+    console.log('=== TESTING JOB QUEUE SYSTEM ===')
 
-    // Test 1: Check if transcript_jobs table exists
-    const { data: jobsTable, error: jobsTableError } = await supabase
+    // Test 1: Check if transcript_jobs table exists and has data
+    const { data: jobs, error: jobsError } = await supabaseAdmin
       .from('transcript_jobs')
-      .select('count')
-      .limit(1)
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10)
 
-    if (jobsTableError) {
+    if (jobsError) {
       return NextResponse.json({
-        error: 'transcript_jobs table not found',
-        details: jobsTableError.message,
-        step: 'table_check'
+        error: 'Failed to query transcript_jobs table',
+        details: jobsError.message
       }, { status: 500 })
     }
 
-    // Test 2: Check if transcript_text column exists in videos
-    const { data: videos, error: videosError } = await supabase
+    // Test 2: Check if there are any ready videos
+    const { data: readyVideos, error: videosError } = await supabaseAdmin
       .from('videos')
-      .select('id, title, transcript_text')
-      .limit(1)
+      .select('id, title, status, playback_id')
+      .eq('status', 'ready')
+      .not('playback_id', 'is', null)
+      .limit(5)
 
     if (videosError) {
       return NextResponse.json({
         error: 'Failed to query videos table',
-        details: videosError.message,
-        step: 'column_check'
+        details: videosError.message
       }, { status: 500 })
     }
 
-    // Test 3: Check if captions table exists
-    const { data: captionsTable, error: captionsTableError } = await supabase
+    // Test 3: Check captions table
+    const { data: captions, error: captionsError } = await supabaseAdmin
       .from('captions')
-      .select('count')
-      .limit(1)
-
-    if (captionsTableError) {
-      return NextResponse.json({
-        error: 'captions table not found',
-        details: captionsTableError.message,
-        step: 'captions_check'
-      }, { status: 500 })
-    }
-
-    // Test 4: Create a test job
-    const testVideoId = videos?.[0]?.id
-    if (!testVideoId) {
-      return NextResponse.json({
-        error: 'No videos found to test with',
-        step: 'test_job_creation'
-      }, { status: 500 })
-    }
-
-    const { data: testJob, error: jobError } = await supabase
-      .from('transcript_jobs')
-      .insert({
-        video_id: testVideoId,
-        status: 'queued',
-        provider: 'deepgram'
-      })
-      .select()
-      .single()
-
-    if (jobError) {
-      return NextResponse.json({
-        error: 'Failed to create test job',
-        details: jobError.message,
-        step: 'job_creation'
-      }, { status: 500 })
-    }
-
-    // Test 5: Update the job to test trigger
-    const { data: updatedJob, error: updateError } = await supabase
-      .from('transcript_jobs')
-      .update({ 
-        status: 'running',
-        attempts: 1
-      })
-      .eq('id', testJob.id)
-      .select()
-      .single()
-
-    if (updateError) {
-      return NextResponse.json({
-        error: 'Failed to update test job',
-        details: updateError.message,
-        step: 'job_update'
-      }, { status: 500 })
-    }
-
-    // Test 6: Query jobs to test indexes
-    const { data: allJobs, error: queryError } = await supabase
-      .from('transcript_jobs')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(5)
 
-    if (queryError) {
+    if (captionsError) {
       return NextResponse.json({
-        error: 'Failed to query jobs',
-        details: queryError.message,
-        step: 'job_query'
+        error: 'Failed to query captions table',
+        details: captionsError.message
       }, { status: 500 })
     }
 
-    // Test 7: Clean up test job
-    await supabase
-      .from('transcript_jobs')
-      .delete()
-      .eq('id', testJob.id)
-
     return NextResponse.json({
       success: true,
-      message: 'Job queue database migration successful!',
-      tests: {
-        transcript_jobs_table: '✅ Exists',
-        transcript_text_column: '✅ Exists',
-        captions_table: '✅ Exists',
-        job_creation: '✅ Working',
-        job_update: '✅ Working',
-        job_query: '✅ Working',
-        trigger_function: '✅ Working'
+      message: 'Job queue system test completed',
+      summary: {
+        total_jobs: jobs?.length || 0,
+        ready_videos: readyVideos?.length || 0,
+        total_captions: captions?.length || 0
       },
-      sample_data: {
-        videos_count: videos?.length || 0,
-        jobs_created: 1,
-        jobs_updated: 1,
-        jobs_cleaned: 1
-      },
+      jobs: jobs?.map(job => ({
+        id: job.id,
+        video_id: job.video_id,
+        status: job.status,
+        attempts: job.attempts,
+        created_at: job.created_at,
+        updated_at: job.updated_at
+      })) || [],
+      ready_videos: readyVideos?.map(video => ({
+        id: video.id,
+        title: video.title,
+        status: video.status,
+        playback_id: video.playback_id
+      })) || [],
+      captions: captions?.map(caption => ({
+        id: caption.id,
+        video_id: caption.video_id,
+        provider: caption.provider,
+        lang: caption.lang,
+        srt_url: caption.srt_url
+      })) || [],
       next_steps: [
-        '1. Set up Cloudflare Stream signing keys',
-        '2. Test signed URL generation',
-        '3. Update webhook to create jobs',
-        '4. Update transcription endpoint to use job queue'
+        '1. Upload a video to trigger webhook and create a job',
+        '2. Call /api/transcripts/dequeue to process jobs',
+        '3. Check /api/webhooks/deepgram for callback handling',
+        '4. Verify transcripts are stored in database'
       ]
     })
 
@@ -144,6 +89,37 @@ export async function GET() {
     console.error('Job queue test error:', error)
     return NextResponse.json({
       error: 'Job queue test failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    console.log('=== MANUALLY TRIGGERING JOB DEQUEUE ===')
+
+    // Call the job dequeue endpoint
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/transcripts/dequeue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+
+    const result = await response.json()
+
+    return NextResponse.json({
+      success: true,
+      message: 'Job dequeue triggered manually',
+      dequeue_result: result,
+      status_code: response.status
+    })
+
+  } catch (error) {
+    console.error('Manual job dequeue error:', error)
+    return NextResponse.json({
+      error: 'Manual job dequeue failed',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
   }

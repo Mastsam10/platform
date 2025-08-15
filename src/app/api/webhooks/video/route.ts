@@ -83,51 +83,43 @@ export async function POST(request: NextRequest) {
 
       console.log(`✅ Video ${video.id} updated to ready status`)
 
-      // Trigger transcript generation
+      // Create transcription job instead of calling transcription directly
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-gamma-flax.vercel.app'
-        const transcriptResponse = await fetch(`${baseUrl}/api/transcripts/start`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            videoId: video.id,
+        console.log(`📝 Creating transcription job for video ${video.id}`)
+        
+        const { data: job, error: jobError } = await supabaseAdmin
+          .from('transcript_jobs')
+          .insert({
+            video_id: video.id,
+            status: 'queued',
             provider: 'deepgram',
-            lang: 'en'
-          }),
-        })
+            attempts: 0,
+            next_attempt_at: new Date().toISOString()
+          })
+          .select()
+          .single()
 
-        if (transcriptResponse.ok) {
-          const transcriptData = await transcriptResponse.json()
-          console.log(`✅ Transcript generation triggered for video ${video.id}`)
-          
-          // Trigger chapter generation after transcript is ready
-          if (transcriptData.srt) {
-            const chapterResponse = await fetch(`${baseUrl}/api/chapters/generate`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                videoId: video.id,
-                srtUrl: transcriptData.srt
-              }),
-            })
-
-            if (chapterResponse.ok) {
-              const chapterData = await chapterResponse.json()
-              console.log(`✅ Generated ${chapterData.count} chapters for video ${video.id}`)
-            }
-          }
-        } else {
-          console.error('Failed to trigger transcript generation:', await transcriptResponse.text())
+        if (jobError) {
+          console.error('❌ Failed to create transcription job:', jobError)
+          return NextResponse.json(
+            { error: 'Failed to create transcription job' },
+            { status: 500 }
+          )
         }
-      } catch (transcriptError) {
-        console.error('Failed to trigger transcript generation:', transcriptError)
+
+        console.log(`✅ Transcription job created: ${job.id} for video ${video.id}`)
+        console.log(`📋 Job status: ${job.status}, next attempt: ${job.next_attempt_at}`)
+
+        // Note: Chapter generation will be triggered after transcription is complete
+        // via the Deepgram webhook handler, not here
+        
+      } catch (jobError) {
+        console.error('❌ Failed to create transcription job:', jobError)
+        // Don't fail the webhook if job creation fails
+        // The job can be created later via manual retry
       }
       
-      console.log(`🎉 Video ${video.id} is ready for playback`)
+      console.log(`🎉 Video ${video.id} is ready for playback and transcription queued`)
     } else if (status?.state === 'error') {
       console.error(`❌ Cloudflare Stream video ${uid} failed to process:`, body)
       console.error(`Error reason: ${status?.errReasonCode} - ${status?.errReasonText}`)
