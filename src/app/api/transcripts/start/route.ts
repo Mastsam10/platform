@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { deepgram } from '@/lib/deepgram'
-import { Video } from '@/lib/mux'
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,38 +28,60 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Cloudflare Stream approach: Use public URLs for transcription
-    console.log('Using Cloudflare Stream approach: Public URLs for transcription')
+    console.log('Starting transcription for video:', video.title)
+    console.log('Cloudflare Stream UID:', video.playback_id)
     
     try {
-      // Step 1: Get Cloudflare download URL for transcription
-      console.log('Getting Cloudflare download URL for asset:', video.asset_id)
+      // Step 1: Download video from Cloudflare Stream
+      console.log('Downloading video from Cloudflare Stream...')
       
-      // Cloudflare provides publicly accessible download URLs
-      const downloadUrl = `https://videodelivery.net/${video.asset_id}/downloads/default.mp4`
-      console.log('Cloudflare download URL:', downloadUrl)
+      // Try different Cloudflare Stream URL formats
+      const urlFormats = [
+        `https://videodelivery.net/${video.playback_id}/downloads/default.mp4`,
+        `https://videodelivery.net/${video.playback_id}/manifest/video.m3u8`,
+        `https://videodelivery.net/${video.playback_id}/downloads/default.mp4?token=public`
+      ]
       
-      // Step 2: Use Deepgram to transcribe the video
+      let videoBuffer: ArrayBuffer | null = null
+      let downloadUrl = ''
+      
+      for (const url of urlFormats) {
+        try {
+          console.log('Trying URL:', url)
+          const response = await fetch(url)
+          
+          if (response.ok) {
+            videoBuffer = await response.arrayBuffer()
+            downloadUrl = url
+            console.log('Successfully downloaded video from:', url)
+            break
+          } else {
+            console.log('Failed to download from:', url, 'Status:', response.status)
+          }
+        } catch (error) {
+          console.log('Error downloading from:', url, error)
+        }
+      }
+      
+      if (!videoBuffer) {
+        throw new Error('Could not download video from any Cloudflare Stream URL')
+      }
+
+      // Step 2: Use Deepgram to transcribe the video file
       if (process.env.DEEPGRAM_API_KEY) {
-        console.log('Attempting Deepgram transcription with Cloudflare URL...')
+        console.log('Uploading video file to Deepgram for transcription...')
+        
+        // Create FormData with the video file
+        const formData = new FormData()
+        const blob = new Blob([videoBuffer], { type: 'video/mp4' })
+        formData.append('file', blob, 'video.mp4')
         
         const response = await fetch('https://api.deepgram.com/v1/listen', {
           method: 'POST',
           headers: {
             'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}`,
-            'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            url: downloadUrl,
-            model: 'nova-2',
-            language: lang,
-            smart_format: true,
-            punctuate: true,
-            diarize: false,
-            utterances: true,
-            paragraphs: true,
-            format: 'srt'
-          })
+          body: formData
         })
 
         if (response.ok) {
@@ -99,8 +120,9 @@ export async function POST(request: NextRequest) {
             transcript,
             srt,
             confidence,
-            method: 'cloudflare_stream_real',
-            note: 'Real transcription using Cloudflare Stream URLs'
+            method: 'direct_file_upload',
+            downloadUrl,
+            note: 'Real transcription using direct file upload to Deepgram'
           })
         } else {
           const errorText = await response.text()
@@ -116,10 +138,10 @@ export async function POST(request: NextRequest) {
       console.error('Video processing error:', processingError)
       
       // Fallback to placeholder transcript
-      const transcript = `Sample transcript for video ${videoId}. This is a placeholder transcript that will be replaced with actual Deepgram transcription when the API key is configured.`
+      const transcript = `Sample transcript for video ${video.title}. This is a placeholder transcript that will be replaced with actual Deepgram transcription when the video is accessible.`
       const srt = `1
 00:00:00,000 --> 00:00:10,000
-Sample transcript for video ${videoId}.
+Sample transcript for video ${video.title}.
 
 2
 00:00:10,000 --> 00:00:20,000
@@ -171,49 +193,4 @@ This verse gives us hope in difficult times.`
       { status: 500 }
     )
   }
-}
-
-function generateSRT(words: any[]): string {
-  let srt = ''
-  let segmentIndex = 1
-  let currentSegment: any[] = []
-  let segmentStart = 0
-
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i]
-    
-    if (currentSegment.length === 0) {
-      segmentStart = word.start
-    }
-    
-    currentSegment.push(word)
-    
-    // Create segment every ~10 seconds or at sentence boundaries
-    const segmentDuration = word.end - segmentStart
-    const isSentenceEnd = word.word.endsWith('.') || word.word.endsWith('!') || word.word.endsWith('?')
-    
-    if (segmentDuration > 10 || isSentenceEnd || i === words.length - 1) {
-      const segmentText = currentSegment.map(w => w.word).join(' ')
-      const startTime = formatTime(segmentStart)
-      const endTime = formatTime(word.end)
-      
-      srt += `${segmentIndex}\n`
-      srt += `${startTime} --> ${endTime}\n`
-      srt += `${segmentText}\n\n`
-      
-      segmentIndex++
-      currentSegment = []
-    }
-  }
-  
-  return srt
-}
-
-function formatTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = Math.floor(seconds % 60)
-  const ms = Math.floor((seconds % 1) * 1000)
-  
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`
 }
