@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { verifyCloudflareWebhookSignature } from '@/lib/webhookVerification'
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,18 +8,35 @@ export async function POST(request: NextRequest) {
     console.log('=== CLOUDFLARE STREAM WEBHOOK ENDPOINT ACCESSED ===')
     console.log('Timestamp:', timestamp)
     
-    // Verify webhook signature (optional but recommended)
+    // Get the raw body for signature verification
+    const body = await request.text()
+    
+    // Verify webhook signature
     const signature = request.headers.get('webhook-signature')
     if (signature && process.env.CLOUDFLARE_WEBHOOK_SECRET) {
-      // TODO: Add signature verification logic here
-      console.log('Cloudflare webhook signature received:', signature)
+      const isValid = verifyCloudflareWebhookSignature(
+        signature,
+        body,
+        process.env.CLOUDFLARE_WEBHOOK_SECRET
+      )
+      
+      if (!isValid) {
+        console.error('❌ Invalid webhook signature')
+        return NextResponse.json(
+          { error: 'Invalid webhook signature' },
+          { status: 401 }
+        )
+      }
+      
+      console.log('✅ Webhook signature verified successfully')
+    } else {
+      console.warn('⚠️ No webhook signature or secret provided - skipping verification')
     }
-
-    const body = await request.json()
-    console.log('Webhook payload:', JSON.stringify(body, null, 2))
+    
+    console.log('Webhook payload:', JSON.stringify(payload, null, 2))
 
     // Cloudflare Stream webhook structure based on official documentation
-    const { uid, readyToStream, status, meta, created, modified } = body
+    const { uid, readyToStream, status, meta, created, modified } = payload
     
     if (!uid) {
       console.error('Invalid webhook payload - missing uid:', body)
