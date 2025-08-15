@@ -2,41 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { asset_id, playback_id, duration } = body
-
-    // Simulate the video.asset.ready webhook
-    const webhookPayload = {
-      type: 'video.asset.ready',
-      data: {
-        id: asset_id,
-        playback_id: playback_id,
-        duration: duration || '17.161133'
-      }
-    }
-
-    // Call the webhook endpoint
-    const webhookResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-gamma-flax.vercel.app'}/api/webhooks/video`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(webhookPayload),
-    })
-
-    const result = await webhookResponse.json()
+    console.log('=== TEST WEBHOOK ENDPOINT ACCESSED ===')
     
-    return NextResponse.json({
-      success: webhookResponse.ok,
-      result,
-      webhookStatus: webhookResponse.status
+    const body = await request.json()
+    console.log('Test webhook payload:', JSON.stringify(body, null, 2))
+    
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Test webhook received successfully',
+      timestamp: new Date().toISOString(),
+      received: body
     })
-
   } catch (error) {
     console.error('Test webhook error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
   }
+}
+
+export async function GET() {
+  return NextResponse.json({ 
+    success: true, 
+    message: 'Test webhook endpoint is accessible',
+    timestamp: new Date().toISOString()
+  })
 }
