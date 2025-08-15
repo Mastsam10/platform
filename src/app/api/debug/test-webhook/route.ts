@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    // Simulate the Cloudflare webhook payload for the existing video
+    // Simulate the Cloudflare webhook payload for the new test video
     const webhookPayload = {
-      uid: "c24b8db510124a21b12731304c1b2966",
+      uid: "05832a90a87c47378173c71176475163",
       readyToStream: true,
       status: {
         state: "ready"
       },
       meta: {},
-      created: "2025-08-15T15:14:30.681071Z",
-      modified: "2025-08-15T15:14:52.418373Z"
+      created: "2025-08-15T21:59:30.898895Z",
+      modified: "2025-08-15T21:59:48.959078Z"
     }
     
     console.log('🧪 Testing webhook with payload:', JSON.stringify(webhookPayload, null, 2))
