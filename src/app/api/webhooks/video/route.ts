@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         try {
           console.log(`🚀 Triggering immediate transcription for video ${video.id}`)
           
-          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-gamma-flax.vercel.app'
+          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-13coxx0l3-samuel-yus-projects-88ba4e57.vercel.app'
           const response = await fetch(`${baseUrl}/api/transcripts/dequeue`, {
             method: 'POST',
             headers: {
