@@ -57,6 +57,17 @@ export async function POST(request: NextRequest) {
       
       // Find video by asset_id (which is the Cloudflare UID)
       console.log(`🔍 Attempting to find video by asset_id: ${uid}`)
+      
+      // First, let's see all videos in the database for debugging
+      const { data: allVideos } = await supabaseAdmin
+        .from('videos')
+        .select('id, title, asset_id, status')
+      
+      console.log('📋 All videos in database:')
+      allVideos?.forEach(v => {
+        console.log(`  - ${v.id}: "${v.title}" (asset_id: ${v.asset_id}, status: ${v.status})`)
+      })
+      
       const { data: video, error: videoError } = await supabaseAdmin
         .from('videos')
         .select('id, title, status')
