@@ -3,8 +3,8 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function GET() {
   try {
-    // The actual Cloudflare video UID that exists
-    const cloudflareUid = 'c24b8db510124a21b12731304c1b2966'
+    // The new Cloudflare video UID that was just uploaded
+    const cloudflareUid = '05832a90a87c47378173c71176475163'
     
     console.log(`🔧 Creating video record for Cloudflare UID: ${cloudflareUid}`)
     
@@ -27,8 +27,8 @@ export async function GET() {
       .from('videos')
       .insert({
         channel_id: channel.id,
-        title: 'Test Video (Fixed)',
-        description: 'Video created to fix asset_id mismatch',
+        title: 'test',
+        description: 'New test video uploaded',
         status: 'ready',
         asset_id: cloudflareUid,
         playback_id: cloudflareUid,
