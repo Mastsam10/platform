@@ -4,6 +4,8 @@ import VideoList from '@/components/VideoList'
 import VideoUpload from '@/components/VideoUpload'
 import { useState } from 'react'
 
+// Deployment trigger: 2025-08-14 19:40 - Force Vercel deployment
+
 export default function Home() {
   const [showUpload, setShowUpload] = useState(false)
 
