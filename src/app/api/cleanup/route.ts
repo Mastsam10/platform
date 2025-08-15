@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
+export async function GET(request: NextRequest) {
+  return NextResponse.json({ 
+    message: 'Use POST to cleanup test videos',
+    testTitles: ['1', '55', 'test1', 'test2', 'test3', 'test4', 'Test Video']
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('🧹 Starting cleanup of test videos...')
