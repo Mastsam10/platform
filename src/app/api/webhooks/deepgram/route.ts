@@ -69,23 +69,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Video not ready' }, { status: 400 })
     }
     
-    // Attach caption to Cloudflare Stream
+    // Attach caption to Cloudflare Stream using the correct API endpoint
     try {
+      // Create FormData with the VTT file
+      const formData = new FormData()
+      const vttBlob = new Blob([vtt], { type: 'text/vtt' })
+      formData.append('file', vttBlob, `${video_id}.vtt`)
+      
       const attachResponse = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/stream/${video.playback_id}/captions`,
+        `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/stream/${video.playback_id}/captions/en`,
         {
-          method: 'POST',
+          method: 'PUT',
           headers: {
-            'Authorization': `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
-            'Content-Type': 'application/json'
+            'Authorization': `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`
           },
-          body: JSON.stringify({
-            url: vttPublicUrl,
-            lang: 'en',
-            label: 'English',
-            kind: 'subtitles',
-            default: true
-          })
+          body: formData
         }
       )
       
