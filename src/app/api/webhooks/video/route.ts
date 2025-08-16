@@ -15,12 +15,21 @@ function dbFingerprint() {
 export async function POST(request: NextRequest) {
   try {
     console.log('[DB FINGERPRINT]', dbFingerprint())
-    const timestamp = new Date().toISOString()
-    console.log('=== CLOUDFLARE STREAM WEBHOOK ENDPOINT ACCESSED ===')
-    console.log('Timestamp:', timestamp)
     
     // Get the raw body for signature verification
     const body = await request.text()
+    
+    // Enhanced logging as recommended
+    console.log('[CF WEBHOOK] hit', {
+      ts: new Date().toISOString(),
+      url: request.url,
+      len: body.length,
+      h: Object.fromEntries(request.headers),
+    });
+    
+    const timestamp = new Date().toISOString()
+    console.log('=== CLOUDFLARE STREAM WEBHOOK ENDPOINT ACCESSED ===')
+    console.log('Timestamp:', timestamp)
     
     // Verify webhook signature
     const signature = request.headers.get('webhook-signature')
@@ -46,6 +55,7 @@ export async function POST(request: NextRequest) {
     
     // Parse the body as JSON
     const payload = JSON.parse(body)
+    console.log('[CF WEBHOOK] body', payload)
     console.log('Webhook payload:', JSON.stringify(payload, null, 2))
 
     // Cloudflare Stream webhook structure based on official documentation
@@ -62,9 +72,11 @@ export async function POST(request: NextRequest) {
     console.log(`Cloudflare Stream webhook for video UID: ${uid}`)
     console.log(`Ready to stream: ${readyToStream}, Status: ${status?.state}`)
 
-    // Handle video ready event
-    if (status?.state === 'ready' && readyToStream === true) {
-      console.log('🎉 CLOUDFLARE STREAM VIDEO READY!')
+    // TEMP: loosen gating to see flow (as recommended)
+    const isReady = payload.type?.includes('ready') || status?.state === 'ready' || readyToStream === true;
+    
+    if (isReady && uid) {
+      console.log('🎉 CLOUDFLARE STREAM VIDEO READY! (loosened gate)')
       
       // Find video by asset_id (which is the Cloudflare UID)
       console.log(`🔍 Attempting to find video by asset_id: ${uid}`)
@@ -185,7 +197,16 @@ export async function POST(request: NextRequest) {
       }
       
       console.log(`🎉 Video ${video.id} is ready for playback and transcription processing started`)
-    } else if (status?.state === 'error') {
+    } else {
+      console.log('[CF WEBHOOK] skipped event', { 
+        type: payload.type, 
+        status: status?.state, 
+        readyToStream: readyToStream,
+        uid: uid 
+      });
+    }
+    
+    if (status?.state === 'error') {
       console.error(`❌ Cloudflare Stream video ${uid} failed to process:`, body)
       console.error(`Error reason: ${status?.errReasonCode} - ${status?.errReasonText}`)
       
@@ -203,7 +224,7 @@ export async function POST(request: NextRequest) {
           .eq('id', video.id)
         console.log(`❌ Updated video ${video.id} to error status`)
       }
-    } else {
+    } else if (status?.state !== 'ready') {
       console.log(`ℹ️ Cloudflare Stream video ${uid} status: ${status?.state}, readyToStream: ${readyToStream}`)
     }
 
