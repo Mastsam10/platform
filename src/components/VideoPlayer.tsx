@@ -97,10 +97,10 @@ export default function VideoPlayer({
         className="w-full h-full rounded-lg"
         poster={`https://videodelivery.net/${playbackId}/thumbnails/thumbnail.jpg?time=0s`}
       >
-        {srtUrl && (
+        {hasCaptions && (
           <track 
             kind="subtitles"
-            src={srtUrl}
+            src={`https://videodelivery.net/${playbackId}/captions/en.vtt`}
             srcLang="en"
             label="English"
             default={showCaptions}
@@ -110,7 +110,7 @@ export default function VideoPlayer({
       </video>
       
       {/* Caption Controls - YouTube-style */}
-      {srtUrl && (
+      {hasCaptions && (
         <div className="absolute top-2 right-2 flex gap-2">
           <button
             onClick={() => setShowCaptions(!showCaptions)}
