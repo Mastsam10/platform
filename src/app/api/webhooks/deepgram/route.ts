@@ -5,294 +5,183 @@ export async function POST(request: NextRequest) {
   try {
     console.log('=== DEEPGRAM WEBHOOK ENDPOINT ACCESSED ===')
     
-    const body = await request.json()
-    console.log('Deepgram webhook payload:', JSON.stringify(body, null, 2))
-
+    const payload = await request.json()
+    console.log('Deepgram webhook payload:', JSON.stringify(payload, null, 2))
+    
     // Extract metadata from callback
-    const { callback_metadata } = body
-    const jobId = callback_metadata?.job_id
-    const videoId = callback_metadata?.video_id
-
-    if (!jobId || !videoId) {
-      console.error('❌ Missing job_id or video_id in callback metadata')
-      return NextResponse.json({
-        error: 'Missing job_id or video_id in callback metadata'
-      }, { status: 400 })
+    const { job_id, video_id } = payload.metadata || {}
+    
+    if (!job_id || !video_id) {
+      console.error('❌ Missing job_id or video_id in metadata')
+      return NextResponse.json({ error: 'Missing metadata' }, { status: 400 })
     }
-
-    console.log(`📝 Processing Deepgram callback for job ${jobId}, video ${videoId}`)
-
-    // Check if transcription was successful
-    if (body.error) {
-      console.error(`❌ Deepgram transcription failed for job ${jobId}:`, body.error)
-      
-      // Mark job as error
-      await supabaseAdmin
-        .from('transcript_jobs')
-        .update({
-          status: 'error',
-          error: `Deepgram transcription failed: ${body.error}`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', jobId)
-
-      return NextResponse.json({ success: true })
-    }
-
-    // Extract transcript data and convert to VTT + plain text
-    const { vtt, plain } = toVttAndText(body)
+    
+    console.log(`📝 Processing transcription for job ${job_id}, video ${video_id}`)
+    
+    // Convert Deepgram response to VTT and plain text
+    const { vtt, plain } = toVttAndText(payload)
     
     if (!vtt || !plain) {
-      console.error(`❌ Failed to convert transcript to VTT for job ${jobId}`)
-      await markJobAsError(jobId, 'Failed to convert transcript to VTT')
-      return NextResponse.json({ success: true })
+      console.error('❌ Failed to extract VTT or text from Deepgram response')
+      return NextResponse.json({ error: 'Invalid transcription data' }, { status: 400 })
     }
-
-    console.log(`✅ Converted transcript to VTT for job ${jobId}`)
-    console.log(`📄 VTT length: ${vtt.length} characters`)
-    console.log(`📄 Plain text length: ${plain.length} characters`)
-
-    // Store VTT file in Supabase Storage
-    const vttFileName = `captions/${videoId}.vtt`
-    const vttBlob = new Blob([vtt], { type: 'text/vtt' })
     
+    console.log(`📄 Generated VTT (${vtt.length} chars) and text (${plain.length} chars)`)
+    
+    // Store VTT file in Supabase Storage
+    const path = `captions/${video_id}.vtt`
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from('public')
-      .upload(vttFileName, vttBlob, {
-        contentType: 'text/vtt',
-        upsert: true
+      .upload(path, new Blob([vtt], { type: 'text/vtt' }), { 
+        upsert: true,
+        contentType: 'text/vtt'
       })
-
+    
     if (uploadError) {
-      console.error(`❌ Failed to upload VTT file for job ${jobId}:`, uploadError)
-      await markJobAsError(jobId, `Failed to upload VTT file: ${uploadError.message}`)
-      return NextResponse.json({ success: true })
+      console.error('❌ Failed to upload VTT to storage:', uploadError)
+      return NextResponse.json({ error: 'Storage upload failed' }, { status: 500 })
     }
-
+    
+    console.log(`✅ VTT file uploaded to storage: ${path}`)
+    
     // Get public URL for the VTT file
-    const { data: urlData } = supabaseAdmin.storage
+    const { data: publicUrlData } = supabaseAdmin.storage
       .from('public')
-      .getPublicUrl(vttFileName)
-
-    const vttUrl = urlData.publicUrl
-
-    console.log(`📁 VTT file uploaded: ${vttUrl}`)
-
-    // Get video playback_id for Cloudflare Stream attachment
+      .getPublicUrl(path)
+    
+    const vttPublicUrl = publicUrlData.publicUrl
+    console.log(`🔗 VTT public URL: ${vttPublicUrl}`)
+    
+    // Get video details to find playback_id
     const { data: video, error: videoError } = await supabaseAdmin
       .from('videos')
-      .select('playback_id')
-      .eq('id', videoId)
+      .select('id, title, playback_id')
+      .eq('id', video_id)
       .single()
-
-    if (videoError || !video?.playback_id) {
-      console.error(`❌ Failed to get video playback_id for ${videoId}:`, videoError)
-      // Continue without Stream attachment
-    } else {
-      // Attach caption to Cloudflare Stream
-      try {
-        await attachCaptionToStream(video.playback_id, vttUrl, 'en', 'English')
-        console.log(`✅ Attached caption to Cloudflare Stream for video ${videoId}`)
-      } catch (attachError) {
-        console.error(`❌ Failed to attach caption to Stream for video ${videoId}:`, attachError)
-        // Don't fail the webhook, continue with database updates
+    
+    if (videoError || !video) {
+      console.error('❌ Video not found:', videoError)
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 })
+    }
+    
+    if (!video.playback_id) {
+      console.error('❌ Video has no playback_id')
+      return NextResponse.json({ error: 'Video not ready' }, { status: 400 })
+    }
+    
+    // Attach caption to Cloudflare Stream
+    try {
+      const attachResponse = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/stream/${video.playback_id}/captions`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            url: vttPublicUrl,
+            lang: 'en',
+            label: 'English',
+            kind: 'subtitles',
+            default: true
+          })
+        }
+      )
+      
+      if (!attachResponse.ok) {
+        const errorText = await attachResponse.text()
+        console.error('❌ Failed to attach caption to Cloudflare Stream:', errorText)
+        // Don't fail the whole process - just log the error
+      } else {
+        console.log('✅ Caption attached to Cloudflare Stream successfully')
       }
+    } catch (attachError) {
+      console.error('❌ Error attaching caption to Cloudflare Stream:', attachError)
+      // Don't fail the whole process - just log the error
     }
-
-    // Store transcript metadata in captions table
-    const { error: captionError } = await supabaseAdmin
-      .from('captions')
-      .insert({
-        video_id: videoId,
-        provider: 'deepgram',
-        lang: 'en',
-        srt_url: vttUrl, // Store VTT URL in srt_url field for compatibility
-        created_at: new Date().toISOString()
-      })
-
-    if (captionError) {
-      console.error(`❌ Failed to store caption metadata for job ${jobId}:`, captionError)
-      // Don't fail the webhook, continue with video update
-    }
-
-    // Update video with transcript data
-    const { error: videoUpdateError } = await supabaseAdmin
+    
+    // Update video record with transcript data
+    const { error: updateError } = await supabaseAdmin
       .from('videos')
       .update({
-        transcript_text: plain,
-        srt_url: vttUrl, // Store VTT URL in srt_url field for compatibility
-        updated_at: new Date().toISOString()
+        srt_url: vttPublicUrl,
+        transcript_text: plain
       })
-      .eq('id', videoId)
-
-    if (videoUpdateError) {
-      console.error(`❌ Failed to update video ${videoId} with transcript:`, videoUpdateError)
-      await markJobAsError(jobId, `Failed to update video: ${videoUpdateError.message}`)
-      return NextResponse.json({ success: true })
+      .eq('id', video_id)
+    
+    if (updateError) {
+      console.error('❌ Failed to update video with transcript:', updateError)
+      return NextResponse.json({ error: 'Database update failed' }, { status: 500 })
     }
-
+    
     // Mark job as completed
     const { error: jobUpdateError } = await supabaseAdmin
       .from('transcript_jobs')
       .update({
         status: 'done',
-        error: null,
         updated_at: new Date().toISOString()
       })
-      .eq('id', jobId)
-
+      .eq('id', job_id)
+    
     if (jobUpdateError) {
-      console.error(`❌ Failed to mark job ${jobId} as done:`, jobUpdateError)
+      console.error('❌ Failed to mark job as done:', jobUpdateError)
     }
-
-    console.log(`✅ Job ${jobId} completed successfully`)
-
-    // Trigger chapter generation
-    try {
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-gamma-flax.vercel.app'
-      const chapterResponse = await fetch(`${baseUrl}/api/chapters/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          videoId: videoId,
-          vttUrl: vttUrl
-        }),
-      })
-
-      if (chapterResponse.ok) {
-        const chapterData = await chapterResponse.json()
-        console.log(`✅ Generated ${chapterData.count} chapters for video ${videoId}`)
-      } else {
-        console.error(`❌ Failed to generate chapters for video ${videoId}:`, await chapterResponse.text())
-      }
-    } catch (chapterError) {
-      console.error(`❌ Error generating chapters for video ${videoId}:`, chapterError)
-      // Don't fail the webhook if chapter generation fails
-    }
-
-    console.log(`🎉 Transcription and chapter generation completed for video ${videoId}`)
-
-    return NextResponse.json({ success: true })
-
+    
+    console.log(`✅ Transcription completed for video ${video_id}`)
+    console.log(`📊 Job ${job_id} marked as done`)
+    
+    // TODO: Trigger chapter generation (async)
+    // fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/chapters/generate`, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ videoId: video_id, vttUrl: vttPublicUrl })
+    // }).catch(() => {})
+    
+    return NextResponse.json({ 
+      success: true,
+      video_id,
+      job_id,
+      vtt_url: vttPublicUrl,
+      text_length: plain.length
+    })
+    
   } catch (error) {
     console.error('❌ Deepgram webhook error:', error)
     return NextResponse.json({
-      error: 'Deepgram webhook failed',
+      error: 'Webhook processing failed',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
   }
 }
 
-// Convert Deepgram results to VTT and plain text (from approach.md)
 function toVttAndText(dg: any) {
-  let vtt = 'WEBVTT\n\n', plain = '';
-  const paras = dg?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs ?? [];
+  let vtt = 'WEBVTT\n\n', plain = ''
   
-  if (paras.length === 0) {
-    // Fallback to words if no paragraphs
-    const words = dg?.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
-    if (words.length > 0) {
-      // Group words into segments
-      const segments = groupWordsIntoSegments(words);
-      segments.forEach((segment, index) => {
-        const startTime = segment[0].start || 0;
-        const endTime = segment[segment.length - 1].end || 0;
-        const text = segment.map((w: any) => w.word).join(' ');
-        
-        vtt += `${sec(startTime)} --> ${sec(endTime)}\n${text.trim()}\n\n`;
-        plain += text.trim() + '\n';
-      });
-    }
-  } else {
-    paras.forEach((p: any) => {
-      vtt += `${sec(p.start)} --> ${sec(p.end)}\n${p.transcript.trim()}\n\n`;
-      plain += p.transcript.trim() + '\n';
-    });
+  // Extract paragraphs from Deepgram response
+  const paragraphs = dg?.results?.channels?.[0]?.alternatives?.[0]?.paragraphs?.paragraphs ?? []
+  
+  if (paragraphs.length === 0) {
+    console.warn('⚠️ No paragraphs found in Deepgram response')
+    return { vtt: null, plain: null }
   }
   
-  return { vtt, plain };
+  paragraphs.forEach((p: any) => {
+    const startTime = formatTime(p.start)
+    const endTime = formatTime(p.end)
+    const transcript = p.transcript.trim()
+    
+    vtt += `${startTime} --> ${endTime}\n${transcript}\n\n`
+    plain += transcript + '\n'
+  })
+  
+  return { vtt, plain }
 }
 
-function groupWordsIntoSegments(words: any[]): any[][] {
-  const segments = [];
-  let currentSegment = [];
-  let lastEndTime = 0;
-
-  for (const word of words) {
-    const startTime = word.start || 0;
-    const endTime = word.end || 0;
-
-    // Start new segment if there's a gap > 1 second or if it's the first word
-    if (currentSegment.length === 0 || (startTime - lastEndTime) > 1.0) {
-      if (currentSegment.length > 0) {
-        segments.push(currentSegment);
-      }
-      currentSegment = [word];
-    } else {
-      currentSegment.push(word);
-    }
-
-    lastEndTime = endTime;
-  }
-
-  // Add the last segment
-  if (currentSegment.length > 0) {
-    segments.push(currentSegment);
-  }
-
-  return segments;
-}
-
-function sec(s: number) {
-  const h = String(Math.floor(s / 3600)).padStart(2, '0');
-  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-  const ss = (s % 60).toFixed(3).padStart(6, '0');
-  return `${h}:${m}:${ss}`;
-}
-
-// Attach caption to Cloudflare Stream (from approach.md)
-async function attachCaptionToStream(uid: string, vttUrl: string, lang = 'en', label = 'English') {
-  if (!process.env.CLOUDFLARE_API_TOKEN || !process.env.CLOUDFLARE_ACCOUNT_ID) {
-    throw new Error('Cloudflare credentials not configured');
-  }
-
-  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/stream/${uid}/captions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ 
-      url: vttUrl, 
-      lang, 
-      label, 
-      kind: 'subtitles', 
-      default: true 
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to attach caption to Stream: ${response.status} ${errorText}`);
-  }
-
-  const result = await response.json();
-  console.log('Caption attached to Stream:', result);
-}
-
-async function markJobAsError(jobId: string, error: string) {
-  try {
-    await supabaseAdmin
-      .from('transcript_jobs')
-      .update({
-        status: 'error',
-        error: error,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', jobId)
-  } catch (updateError) {
-    console.error(`❌ Failed to mark job ${jobId} as error:`, updateError)
-  }
+function formatTime(seconds: number): string {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = (seconds % 60).toFixed(3)
+  
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.padStart(6, '0')}`
 }
