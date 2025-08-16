@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import VideoPlayer from './VideoPlayer'
+import Link from 'next/link'
 
 interface Video {
   id: string
@@ -110,7 +111,11 @@ export default function VideoList() {
         <div key={video.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">{video.title}</h3>
+              <Link href={`/videos/${video.id}`}>
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors">
+                  {video.title}
+                </h3>
+              </Link>
               {video.description && (
                 <p className="text-gray-600 dark:text-gray-300 mb-2">{video.description}</p>
               )}
@@ -133,6 +138,15 @@ export default function VideoList() {
                 {video.duration_s && (
                   <p>Duration: {Math.floor(video.duration_s / 60)}:{(video.duration_s % 60).toString().padStart(2, '0')}</p>
                 )}
+              </div>
+              {/* Watch button for better UX */}
+              <div className="mt-4">
+                <Link 
+                  href={`/videos/${video.id}`}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors"
+                >
+                  Watch Video
+                </Link>
               </div>
             </div>
             <div>
