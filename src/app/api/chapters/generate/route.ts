@@ -28,15 +28,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!video.srt_url) {
+    // Get transcript from transcripts table instead of srt_url
+    const { data: transcriptData, error: transcriptError } = await supabase
+      .from('transcripts')
+      .select('lines, raw_vtt')
+      .eq('video_id', videoId)
+      .eq('lang', 'en')
+      .eq('status', 'ready')
+      .single()
+
+    if (transcriptError || !transcriptData) {
       return NextResponse.json(
         { error: 'No transcript available for this video' },
         { status: 400 }
       )
     }
 
-    // Extract plain text from SRT
-    const transcript = extractTextFromSRT(video.srt_url || '')
+    // Extract plain text from transcript lines
+    const transcript = extractTextFromTranscriptLines(transcriptData.lines || [])
     
     // Generate chapters
     const chapters = generateChapters(transcript)
@@ -79,15 +88,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function extractTextFromSRT(srtContent: string): string {
-  if (!srtContent) return ''
+function extractTextFromTranscriptLines(lines: Array<{ startMs: number; endMs: number; text: string }>): string {
+  if (!lines || lines.length === 0) return ''
   
-  // Remove SRT timestamps and formatting, keep only text
-  return srtContent
-    .replace(/\d+\n/g, '') // Remove subtitle numbers
-    .replace(/\d{2}:\d{2}:\d{2},\d{3}\s-->\s\d{2}:\d{2}:\d{2},\d{3}\n/g, '') // Remove timestamps
-    .replace(/\n\n/g, ' ') // Replace double newlines with spaces
-    .replace(/\n/g, ' ') // Replace single newlines with spaces
+  // Extract just the text from transcript lines
+  return lines
+    .map(line => line.text)
+    .join(' ')
     .replace(/\s+/g, ' ') // Normalize whitespace
     .trim()
 }

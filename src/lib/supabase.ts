@@ -35,7 +35,7 @@ export interface Video {
   playback_id?: string
   duration_s?: number
   published_at?: string
-  srt_url?: string
+  has_captions?: boolean
 }
 
 export interface VideoTag {

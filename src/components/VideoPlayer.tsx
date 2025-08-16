@@ -7,7 +7,7 @@ interface VideoPlayerProps {
   title?: string
   className?: string
   aspectRatio?: string
-  srtUrl?: string // Legacy SRT URL for captions
+  hasCaptions?: boolean // Whether video has Cloudflare captions
   onPlayerReady?: (getCurrentTime: () => number, seekTo: (seconds: number) => void) => void
 }
 
@@ -16,7 +16,7 @@ export default function VideoPlayer({
   title, 
   className = '', 
   aspectRatio = '16/9', 
-  srtUrl,
+  hasCaptions,
   onPlayerReady 
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
