@@ -3,14 +3,26 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function POST(request: NextRequest) {
   try {
-    const uid = 'DEBUG_' + Date.now()
+    console.log(`🧪 Creating test job`)
     
-    console.log(`🧪 Creating test job with UID: ${uid}`)
+    // First, get a valid video ID from the database
+    const { data: videos, error: videoError } = await supabaseAdmin
+      .from('videos')
+      .select('id, title')
+      .limit(1)
+    
+    if (videoError || !videos || videos.length === 0) {
+      console.error('❌ No videos found in database:', videoError)
+      return NextResponse.json({ error: 'No videos found in database' }, { status: 404 })
+    }
+    
+    const video = videos[0]
+    console.log(`📹 Using video: ${video.id} (${video.title})`)
     
     const { data: job, error } = await supabaseAdmin
       .from('transcript_jobs')
       .insert({
-        video_id: uid, // Using UID as video_id for test
+        video_id: video.id, // Use actual video UUID
         status: 'queued',
         provider: 'deepgram',
         attempts: 0,
@@ -28,7 +40,8 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ 
       ok: true, 
-      uid,
+      video_id: video.id,
+      video_title: video.title,
       job_id: job.id,
       status: job.status 
     })
