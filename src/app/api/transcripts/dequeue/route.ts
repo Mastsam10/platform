@@ -109,13 +109,10 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // Generate signed download URL for Deepgram
-        const signedDownloadUrl = cloudflareStreamSigning.generateSignedDownloadUrl(
-          video.playback_id,
-          300 // 5 minutes TTL
-        )
+        // Generate download URL for Deepgram (using public URL as recommended in approach.md)
+        const downloadUrl = `https://videodelivery.net/${video.playback_id}/downloads/default.mp4`
 
-        console.log(`🔗 Generated signed download URL for video ${video.id}`)
+        console.log(`🔗 Generated download URL for video ${video.id}: ${downloadUrl}`)
 
         // Call Deepgram API with callback
         const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-gamma-flax.vercel.app'
@@ -128,7 +125,7 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            url: signedDownloadUrl,
+            url: downloadUrl,
             callback: callbackUrl,
             callback_metadata: {
               job_id: job.id,
@@ -175,7 +172,7 @@ export async function POST(request: NextRequest) {
           video_id: video.id,
           video_title: video.title,
           deepgram_request_id: deepgramData.request_id,
-          signed_url_generated: true
+          download_url_used: downloadUrl
         })
 
       } catch (jobError) {
