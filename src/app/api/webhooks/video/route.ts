@@ -98,27 +98,27 @@ export async function POST(request: NextRequest) {
     if (isReady && uid) {
       console.log('🎉 CLOUDFLARE STREAM VIDEO READY! (loosened gate)')
       
-      // Find video by asset_id (which is the Cloudflare UID)
-      console.log(`🔍 Attempting to find video by asset_id: ${uid}`)
+      // Find video by playback_id (which is the Cloudflare UID)
+      console.log(`🔍 Attempting to find video by playback_id: ${uid}`)
       
       // First, let's see all videos in the database for debugging
       const { data: allVideos } = await supabaseAdmin
         .from('videos')
-        .select('id, title, asset_id, status')
+        .select('id, title, playback_id, status')
       
       console.log('📋 All videos in database:')
       allVideos?.forEach(v => {
-        console.log(`  - ${v.id}: "${v.title}" (asset_id: ${v.asset_id}, status: ${v.status})`)
+        console.log(`  - ${v.id}: "${v.title}" (playback_id: ${v.playback_id}, status: ${v.status})`)
       })
       
       const { data: video, error: videoError } = await supabaseAdmin
         .from('videos')
-        .select('id, title, asset_id, status, playback_id')
-        .eq('asset_id', uid)
+        .select('id, title, playback_id, status')
+        .eq('playback_id', uid)
         .single()
 
       if (videoError || !video) {
-        console.error('❌ Video not found for asset_id:', uid)
+        console.error('❌ Video not found for playback_id:', uid)
         return NextResponse.json(
           { error: 'Video not found' },
           { status: 404 }

@@ -92,8 +92,7 @@ export async function POST(request: NextRequest) {
         title,
         description,
         status: 'draft',
-        asset_id: upload.result.uid, // Use Cloudflare UID as asset_id
-        upload_id: upload.result.uid // Use UID as upload_id too
+        playback_id: upload.result.uid // Use Cloudflare UID as playback_id
       })
       .select()
       .single()
