@@ -35,7 +35,35 @@ export default function VideoList() {
         throw new Error('Failed to fetch videos')
       }
       const data = await response.json()
-      setVideos(data.videos || [])
+      const videosWithCaptions = data.videos || []
+      
+      // Check caption status for videos that are ready but don't have has_captions set
+      for (const video of videosWithCaptions) {
+        if (video.status === 'ready' && video.playback_id && !video.has_captions) {
+          try {
+            const captionResponse = await fetch('/api/transcripts/check-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                videoId: video.id, 
+                playbackId: video.playback_id 
+              })
+            })
+            
+            if (captionResponse.ok) {
+              const captionData = await captionResponse.json()
+              if (captionData.captionsReady) {
+                // Update the video object to show captions are available
+                video.has_captions = true
+              }
+            }
+          } catch (error) {
+            console.error('Failed to check caption status for video:', video.id, error)
+          }
+        }
+      }
+      
+      setVideos(videosWithCaptions)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load videos')
     } finally {
