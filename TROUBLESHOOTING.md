@@ -212,71 +212,165 @@ The webhook system works perfectly when videos are in the correct "processing" s
 - Let the webhook system handle the final "ready" state
 - The webhook correlation works correctly when videos are in "processing" state
 
-## CRITICAL DISCOVERY: Transcription URL Issue
+## CRITICAL DISCOVERY: Cloudflare Stream Transcription URL Requirements
 
-### Problem: Deepgram 404 errors when trying to transcribe videos
+### Problem: Deepgram requires valid playback_id for Cloudflare Stream transcription
 
-**Discovery Date:** August 14, 2024
+**Discovery Date:** August 15, 2024
 
 **Root Cause:**
-The transcription system was trying to use `asset_id` as a fallback when `playback_id` was not available, but **Mux asset_ids do not work with stream URLs**. Only `playback_ids` can be used with `https://stream.mux.com/` URLs.
+The transcription system requires a valid `playback_id` (which is the Cloudflare UID) to generate signed download URLs. Videos in "processing" state without `playback_id` cannot be transcribed until the webhook processes them correctly.
 
-**The Broken Logic:**
+**The Correct Logic:**
 ```typescript
-// WRONG - asset_id doesn't work with stream URLs
-const muxId = video.playback_id || video.asset_id
-const downloadUrl = `https://stream.mux.com/${muxId}/high.mp4`
-```
-
-**The Fix:**
-```typescript
-// CORRECT - only use playback_id for stream URLs
+// In src/app/api/transcripts/dequeue/route.ts
 if (!video.playback_id) {
-  return NextResponse.json(
-    { error: 'Video not ready for transcription - missing playback_id' },
-    { status: 400 }
-  )
+  console.error(`❌ Video ${video.id} has no playback_id - rescheduling job`)
+  // Reschedule the job for later instead of marking as error
+  await supabaseAdmin
+    .from('transcript_jobs')
+    .update({
+      status: 'queued',
+      attempts: job.attempts + 1,
+      next_attempt_at: new Date(Date.now() + 30000).toISOString(), // Retry in 30 seconds
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', job.id)
+  
+  results.push({
+    job_id: job.id,
+    success: false,
+    error: 'Video not ready yet - rescheduled',
+    rescheduled: true
+  })
+  continue
 }
-const downloadUrl = `https://stream.mux.com/${video.playback_id}/high.mp4`
+
+// Generate signed download URL for Deepgram
+const signedDownloadUrl = cloudflareStreamSigning.generateSignedDownloadUrl(
+  video.playback_id,
+  300 // 5 minutes TTL
+)
 ```
 
 **Key Insight:**
-Transcription can only work when videos have a valid `playback_id`. Videos in "processing" state without `playback_id` cannot be transcribed until the webhook processes them correctly.
+Transcription can only work when videos have a valid `playback_id`. The job queue system intelligently reschedules jobs when videos aren't ready yet, rather than failing them permanently.
+
+**Why This Works:**
+- Cloudflare UID serves as both `asset_id` and `playback_id`
+- Signed URLs require the UID to generate proper JWT tokens
+- Job rescheduling prevents permanent failures for videos still processing
+- The system is resilient to timing issues between video processing and transcription
 
 **Prevention:**
 - Only trigger transcription for videos with valid `playback_id`
-- Never use `asset_id` for stream URLs
+- Use job rescheduling instead of permanent failures
 - Ensure webhook processes videos completely before transcription
+- Monitor job queue for rescheduled jobs to identify processing delays
 
-## CRITICAL DISCOVERY: Mux URLs Not Publicly Accessible to Deepgram
+## CRITICAL DISCOVERY: Cloudflare Stream URLs Work with Deepgram
 
-### Problem: Deepgram cannot access Mux streaming URLs
+### Problem: Deepgram can access Cloudflare Stream URLs with signed URLs
 
-**Discovery Date:** August 14, 2024
+**Discovery Date:** August 15, 2024
 
 **Root Cause:**
-Mux's streaming URLs (`https://stream.mux.com/...`) are **not publicly accessible** to Deepgram's servers, even with public playback policies. This is a common issue with video hosting services that use CDN-based streaming.
+Unlike Mux, **Cloudflare Stream URLs ARE accessible to Deepgram** when using signed URLs. The issue was not URL accessibility, but the need for proper signed URL generation.
 
 **Evidence:**
-- Deepgram returns `REMOTE_CONTENT_ERROR` with "404 Not Found" for stream URLs
-- Download URLs return "Could not determine if URL for media download is publicly routable"
-- Public playback policies don't make URLs accessible to external services
+- Cloudflare Stream provides `videodelivery.net` URLs that are publicly accessible
+- Deepgram can access these URLs when they're properly signed
+- Signed URLs with appropriate TTL (5 minutes) work for transcription
+- The `cloudflareStreamSigning.generateSignedDownloadUrl()` function creates working URLs
 
 **Current Status:**
 - ✅ Deepgram API key is working correctly
-- ✅ Mux assets have public playback policies
-- ❌ Mux URLs are not accessible to Deepgram servers
-- ✅ Placeholder transcription system is working as fallback
+- ✅ Cloudflare Stream URLs are accessible to Deepgram
+- ✅ Signed URL generation is working
+- ✅ Transcription system is functional with Cloudflare Stream
 
-**Solutions:**
-1. **Immediate:** Use placeholder transcripts (current approach)
-2. **Long-term:** Implement direct file upload to Deepgram (requires downloading video first)
-3. **Alternative:** Use a different video hosting service with publicly accessible URLs
+**Key Implementation:**
+```typescript
+// In src/app/api/transcripts/dequeue/route.ts
+const signedDownloadUrl = cloudflareStreamSigning.generateSignedDownloadUrl(
+  video.playback_id,
+  300 // 5 minutes TTL
+)
+```
+
+**Why This Works:**
+- Cloudflare Stream's `videodelivery.net` domain is publicly accessible
+- Signed URLs provide secure, time-limited access
+- Deepgram can download videos for transcription processing
+- The signing system uses JWT tokens with proper expiration
 
 **Prevention:**
-- Test URL accessibility before implementing transcription
-- Consider video hosting service limitations when designing transcription pipeline
-- Document URL accessibility requirements for external services
+- Always use signed URLs for external service access
+- Test URL accessibility with actual API calls
+- Don't assume all video hosting services have the same limitations
+- Document which services work with which external APIs
+
+## CRITICAL DISCOVERY: Next.js Caching Preventing New Videos from Appearing
+
+### Problem: Videos created successfully but not showing on website
+
+**Discovery Date:** August 15, 2024
+
+**Symptoms:**
+- Upload logs show successful database record creation
+- Webhook logs show successful video status updates
+- Videos appear in database when queried directly
+- **But videos don't appear on website** - `/api/videos` returns stale data
+- Manual video creation works (appears immediately)
+- Only automatic uploads seem to "disappear"
+
+**Root Cause:**
+Next.js was **caching the `/api/videos` endpoint**, returning stale data that didn't include newly created videos. The database records were being created successfully, but the API was serving cached responses.
+
+**Evidence:**
+- Videos "4", "5", "6", "8" were all created successfully (logs confirmed)
+- Manual video "3" appeared immediately (bypassed cache)
+- After adding `export const dynamic = 'force-dynamic'` → video "free" appeared immediately
+
+**The Fix:**
+Add `export const dynamic = 'force-dynamic'` to the videos API route:
+
+```typescript
+// In src/app/api/videos/route.ts
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'  // ← This fixed it!
+
+export async function GET(request: NextRequest) {
+  // ... existing code
+}
+```
+
+**Why This Works:**
+- `force-dynamic` tells Next.js to never cache this endpoint
+- Ensures fresh data is fetched from the database on every request
+- Eliminates stale cache issues that hide new videos
+
+**Additional Fixes Applied:**
+- Added `export const runtime = 'nodejs'` to all database-touching routes
+- Added database fingerprinting for environment consistency checks
+- These ensure consistent behavior across all API endpoints
+
+**Key Insight:**
+When database records are created successfully but don't appear in API responses, **check for caching issues first**. The problem is often not in the database or API logic, but in Next.js serving stale cached data.
+
+**Prevention:**
+- Always add `export const dynamic = 'force-dynamic'` to API routes that need fresh data
+- Use `export const runtime = 'nodejs'` for database operations
+- Monitor for caching issues when debugging "disappearing" data
+- Test with manual database queries to confirm data exists
+
+**Debugging Steps:**
+1. Check if manual database queries return the data
+2. Add `force-dynamic` to the API route
+3. Test if the issue persists
+4. If resolved, document the caching issue
+
+---
 
 ## CRITICAL DISCOVERY: Cloudflare Stream Direct Creator Uploads Implementation
 
@@ -355,39 +449,53 @@ async createUpload(title: string): Promise<CloudflareUploadResponse> {
 - Test API endpoints with cURL before implementing in code
 - Use FormData for file uploads to Cloudflare Stream URLs
 
-## CRITICAL DISCOVERY: Transcription Changes Breaking Video System
+## CRITICAL DISCOVERY: Job Queue System Prevents Transcription Failures
 
-### Problem: Every transcription fix breaks video playback
+### Problem: Transcription system is now resilient and self-healing
 
-**Discovery Date:** August 14, 2024
+**Discovery Date:** August 15, 2024
 
 **The Pattern:**
-1. **Video works** → shows "Ready" and plays correctly
-2. **Notice transcription issue** → make changes to fix transcription
-3. **Video breaks** → shows "Video not ready" again
-4. **Have to fix video status** → back to square one
+1. **Video uploaded** → webhook creates transcription job
+2. **Job queued** → waits for video to be ready
+3. **Video ready** → job processes with signed URL
+4. **If video not ready** → job reschedules automatically
+5. **No permanent failures** → system is self-healing
 
 **Root Cause:**
-Making **overly aggressive changes** to transcription system that affect webhook processing:
-- Adding strict `playback_id` requirements in transcription
-- Modifying webhook logic to only trigger transcription with `playback_id`
-- These changes break webhook correlation for videos
+The job queue system with intelligent rescheduling prevents the transcription failures we experienced with Mux. Jobs are not marked as failed when videos aren't ready - they're rescheduled for later.
+
+**Key Implementation:**
+```typescript
+// In src/app/api/transcripts/dequeue/route.ts
+if (!video.playback_id) {
+  // Reschedule instead of fail
+  await supabaseAdmin
+    .from('transcript_jobs')
+    .update({
+      status: 'queued',
+      attempts: job.attempts + 1,
+      next_attempt_at: new Date(Date.now() + 30000).toISOString(), // 30 seconds
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', job.id)
+}
+```
 
 **Key Insight:**
-The transcription system should be **independent** of webhook processing. Changes to transcription should not touch webhook logic that handles video status updates.
+The transcription system is now **independent and resilient**. It doesn't break video playback, and it handles timing issues gracefully through job rescheduling.
 
 **The Correct Approach:**
-1. **Keep webhook processing unchanged** - it's working correctly
-2. **Fix transcription separately** - without modifying webhook logic
-3. **Test changes incrementally** - one system at a time
-4. **Document all changes** - so we don't forget what breaks what
+1. **Job queue handles timing** - no need to modify webhook logic
+2. **Rescheduling prevents failures** - jobs wait for videos to be ready
+3. **Signed URLs work reliably** - Cloudflare Stream is accessible to Deepgram
+4. **System is self-healing** - no manual intervention needed
 
 **Prevention:**
-- **NEVER modify webhook logic** when fixing transcription issues
-- **Test each system independently** before combining changes
-- **Revert webhook changes** if video system breaks
-- **Document the relationship** between systems before making changes
-- **Make minimal, targeted fixes** instead of broad changes
+- **Use job queues for async processing** - don't try to do everything in webhooks
+- **Reschedule instead of fail** - be resilient to timing issues
+- **Test signed URL generation** - ensure external services can access videos
+- **Monitor job queue health** - watch for patterns in rescheduling
 
 ## General Debugging
 
@@ -397,16 +505,31 @@ The transcription system should be **independent** of webhook processing. Change
 # Check all videos and their status
 curl https://platform-gamma-flax.vercel.app/api/debug/simple-video-check
 
-# Detailed webhook correlation analysis
-curl https://platform-gamma-flax.vercel.app/api/debug/webhook-debug
+# List all videos in database
+curl https://platform-gamma-flax.vercel.app/api/debug/list-videos
 
-# Fix video status inconsistencies
-curl -X POST https://platform-gamma-flax.vercel.app/api/debug/fix-video-status
+# Find video by title
+curl "https://platform-gamma-flax.vercel.app/api/debug/find-video?title=test"
 
-# Process legacy videos stuck in processing (not recommended)
-curl -X POST https://platform-gamma-flax.vercel.app/api/debug/process-legacy-videos
+# Test database connection and fingerprint
+curl https://platform-gamma-flax.vercel.app/api/debug/test-db-fingerprint
 
-# Clean up test data (recommended for legacy issues)
+# Test upload initialization process
+curl https://platform-gamma-flax.vercel.app/api/debug/test-upload-init
+
+# Test webhook with simulated payload
+curl -X POST https://platform-gamma-flax.vercel.app/api/debug/test-webhook
+
+# Check environment variables
+curl https://platform-gamma-flax.vercel.app/api/debug/check-env
+
+# Test job queue system
+curl https://platform-gamma-flax.vercel.app/api/debug/test-job-queue
+
+# Test signed URL generation
+curl https://platform-gamma-flax.vercel.app/api/debug/test-signed-urls
+
+# Clean up test data
 curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-test-data
 
 # Check transcript status
@@ -427,6 +550,14 @@ curl https://platform-gamma-flax.vercel.app/api/debug/check-transcript-status
 10. **NEVER modify webhook logic when fixing transcription issues**
 11. **Test each system independently before combining changes**
 12. **Document all discoveries and changes immediately**
+13. **CRITICAL: When database records exist but don't appear in API responses, check for Next.js caching issues first**
+14. **Always add `export const dynamic = 'force-dynamic'` to API routes that need fresh data**
+15. **Use `export const runtime = 'nodejs'` for database operations to ensure consistent behavior**
+16. **CRITICAL: Cloudflare Stream URLs work with Deepgram when using signed URLs**
+17. **Use job queues with rescheduling instead of permanent failures for async processing**
+18. **Signed URLs are essential for secure external service access**
+19. **Cloudflare UID serves as both asset_id and playback_id**
+20. **Job rescheduling prevents timing-related failures in transcription system**
 
 ## Systematic Change Management
 
@@ -457,19 +588,95 @@ curl https://platform-gamma-flax.vercel.app/api/debug/check-transcript-status
 
 **Webhook System:**
 - ✅ **Handles:** Video status updates, playback_id assignment
-- ✅ **Triggers:** Transcription and chapter generation
+- ✅ **Triggers:** Transcription job creation (not direct processing)
+- ✅ **Uses:** Cloudflare Stream webhook payload structure
 - ❌ **Should NOT be modified for:** Transcription URL fixes, Deepgram API changes
 
+**Job Queue System:**
+- ✅ **Handles:** Asynchronous transcription processing
+- ✅ **Features:** Intelligent rescheduling, retry logic, error handling
+- ✅ **Depends on:** Valid playback_id for signed URL generation
+- ✅ **Triggers:** Deepgram API calls with callback webhooks
+- ❌ **Should NOT modify:** Webhook logic, video status handling
+
 **Transcription System:**
-- ✅ **Handles:** Converting video to text, generating SRT
-- ✅ **Depends on:** Valid playback_id for stream URL
+- ✅ **Handles:** Converting video to text, generating SRT/VTT
+- ✅ **Features:** Signed URL generation, Deepgram integration
+- ✅ **Depends on:** Cloudflare Stream UID for URL signing
+- ✅ **Stores:** Results in Supabase Storage and database
 - ❌ **Should NOT modify:** Webhook logic, video status handling
 
 **Video Player System:**
 - ✅ **Depends on:** Valid playback_id, correct video status
-- ✅ **Shows:** Video content, chapters, transcripts
+- ✅ **Features:** HLS.js for cross-browser compatibility
+- ✅ **Shows:** Video content, chapters, transcripts, captions
+- ✅ **Uses:** Cloudflare Stream videodelivery.net URLs
 - ❌ **Should NOT be modified for:** Backend processing issues
+
+**Cloudflare Stream Integration:**
+- ✅ **Provides:** Direct Creator Uploads, HLS playback, signed URLs
+- ✅ **Features:** Webhook notifications, video processing
+- ✅ **URLs:** videodelivery.net for playback, signed URLs for external access
+- ✅ **Compatible:** With Deepgram transcription via signed URLs
+
+## CRITICAL DISCOVERY: Pivoting from Mux to Cloudflare Stream
+
+### Problem: Mux integration had fundamental limitations
+
+**Discovery Date:** August 15, 2024
+
+**Why We Pivoted:**
+1. **Mux URLs not accessible to Deepgram** - streaming URLs were not publicly accessible
+2. **Complex webhook correlation** - asset_id vs playback_id confusion
+3. **Expensive for direct uploads** - required server-side processing
+4. **Limited signed URL support** - not designed for external service access
+
+**Why Cloudflare Stream Works Better:**
+1. **Direct Creator Uploads** - users upload directly to Cloudflare
+2. **Public URL accessibility** - videodelivery.net URLs work with external services
+3. **Simple UID system** - one ID serves as both asset_id and playback_id
+4. **Built-in signed URLs** - JWT-based signing for secure external access
+5. **Cost-effective** - no server-side video processing required
+
+**Key Technical Differences:**
+
+**Mux (Old System):**
+```typescript
+// Complex correlation between asset_id and playback_id
+const assetId = video.asset_id
+const playbackId = video.playback_id
+const streamUrl = `https://stream.mux.com/${playbackId}/high.mp4` // Not accessible to Deepgram
+```
+
+**Cloudflare Stream (New System):**
+```typescript
+// Simple UID system
+const uid = video.playback_id // Same as asset_id
+const playbackUrl = `https://videodelivery.net/${uid}/manifest/video.m3u8`
+const signedUrl = cloudflareStreamSigning.generateSignedDownloadUrl(uid, 300)
+```
+
+**Migration Benefits:**
+- ✅ **Simpler architecture** - one ID instead of two
+- ✅ **Better external service compatibility** - Deepgram can access videos
+- ✅ **Cost reduction** - no server-side video processing
+- ✅ **Better user experience** - direct uploads work immediately
+- ✅ **More reliable** - fewer moving parts in the system
+
+**Lessons Learned:**
+1. **Test external service compatibility early** - don't assume all video hosts work the same
+2. **Consider total cost of ownership** - server-side processing adds complexity and cost
+3. **Simplify when possible** - one ID system is better than two
+4. **Direct uploads are superior** - better user experience and reliability
+5. **Signed URLs are essential** - for secure external service access
+
+**Prevention:**
+- Research video hosting service limitations before committing
+- Test external service integration during proof of concept
+- Consider both technical and business requirements
+- Document service limitations and workarounds
+- Be willing to pivot when fundamental issues are discovered
 
 ---
 
-*Last updated: [Current Date]*
+*Last updated: August 15, 2024*
