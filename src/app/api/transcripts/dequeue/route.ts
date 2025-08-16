@@ -135,10 +135,10 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // Generate signed download URL for Deepgram (using Cloudflare Stream signing)
-        const downloadUrl = cloudflareStreamSigning.generateSignedDownloadUrl(video.playback_id, 300) // 5 minutes TTL
+        // Generate public download URL for Deepgram (as recommended in approach.md)
+        const downloadUrl = `https://videodelivery.net/${video.playback_id}/downloads/default.mp4`
 
-        console.log(`🔗 Generated signed download URL for video ${video.id}: ${downloadUrl}`)
+        console.log(`🔗 Generated public download URL for video ${video.id}: ${downloadUrl}`)
 
         // Call Deepgram API with callback
         const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://platform-gamma-flax.vercel.app'
