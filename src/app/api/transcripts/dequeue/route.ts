@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
         // Get video details
         const { data: video, error: videoError } = await supabaseAdmin
           .from('videos')
-          .select('id, title, playback_id')
+          .select('id, title, playback_id, created_at')
           .eq('id', job.video_id)
           .single()
 
@@ -105,6 +105,32 @@ export async function POST(request: NextRequest) {
             success: false,
             error: 'Video not ready yet - rescheduled',
             rescheduled: true
+          })
+          continue
+        }
+
+        // Check if this is a recent upload (within last 2 minutes) and add extra delay
+        const videoAge = Date.now() - new Date(video.created_at || Date.now()).getTime()
+        const isRecentUpload = videoAge < 2 * 60 * 1000 // 2 minutes
+        
+        if (isRecentUpload && job.attempts < 3) {
+          console.log(`⏰ Video ${video.id} is recent upload (${Math.round(videoAge/1000)}s old) - rescheduling for Cloudflare processing`)
+          await supabaseAdmin
+            .from('transcript_jobs')
+            .update({
+              status: 'queued',
+              attempts: job.attempts + 1,
+              next_attempt_at: new Date(Date.now() + 60000).toISOString(), // Retry in 1 minute
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', job.id)
+          
+          results.push({
+            job_id: job.id,
+            success: false,
+            error: 'Recent upload - waiting for Cloudflare processing',
+            rescheduled: true,
+            video_age_seconds: Math.round(videoAge/1000)
           })
           continue
         }
