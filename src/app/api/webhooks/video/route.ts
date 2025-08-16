@@ -12,6 +12,26 @@ function dbFingerprint() {
   }
 }
 
+// Function to request Cloudflare caption generation
+async function requestCloudflareCaptionGeneration(playbackId: string, lang = 'en') {
+  const url = `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/stream/${playbackId}/captions/${lang}/generate`
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
+      'Content-Type': 'application/json',
+    }
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`CF captions generate failed: ${res.status} ${body}`)
+  }
+
+  return res.json()
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('[DB FINGERPRINT]', dbFingerprint())
@@ -93,147 +113,87 @@ export async function POST(request: NextRequest) {
       
       const { data: video, error: videoError } = await supabaseAdmin
         .from('videos')
-        .select('id, title, status')
+        .select('id, title, asset_id, status, playback_id')
         .eq('asset_id', uid)
         .single()
-      
+
       if (videoError || !video) {
         console.error('❌ Video not found for asset_id:', uid)
-        console.error('Available videos in database:')
-        const { data: allVideos } = await supabaseAdmin
-          .from('videos')
-          .select('id, title, asset_id, status')
-        
-        allVideos?.forEach(v => {
-          console.error(`  - ${v.id}: "${v.title}" (asset_id: ${v.asset_id}, status: ${v.status})`)
-        })
-        
         return NextResponse.json(
           { error: 'Video not found' },
           { status: 404 }
         )
       }
 
-      console.log(`✅ Found video: ${video.id} (${video.title})`)
+      console.log(`✅ Found video: ${video.id} - "${video.title}"`)
 
-      // Update video record with playback information
+      // Update video status to ready and set playback_id
       const { error: updateError } = await supabaseAdmin
         .from('videos')
         .update({
           status: 'ready',
-          playback_id: uid, // Use UID as playback_id for Cloudflare Stream
-          duration_s: 69, // Default duration, will be updated by webhook later
-          aspect_ratio: '16/9' // Default aspect ratio
+          playback_id: uid, // Cloudflare UID serves as playback_id
+          updated_at: new Date().toISOString()
         })
         .eq('id', video.id)
 
       if (updateError) {
-        console.error('Failed to update video:', updateError)
+        console.error('❌ Failed to update video status:', updateError)
         return NextResponse.json(
           { error: 'Failed to update video status' },
           { status: 500 }
         )
       }
 
-      console.log(`✅ Video ${video.id} updated to ready status`)
+      console.log(`✅ Video ${video.id} marked as ready with playback_id: ${uid}`)
 
-      // Create transcription job instead of calling transcription directly
+      // Create transcript record and request caption generation
       try {
-        console.log(`📝 Creating transcription job for video ${video.id}`)
+        // Create (or upsert) transcript row
+        await supabaseAdmin.from('transcripts').upsert({
+          video_id: video.id,
+          lang: 'en',
+          status: 'pending'
+        }, { onConflict: 'video_id,lang' } as any)
+
+        console.log(`📝 Created transcript record for video ${video.id}`)
+
+        // Request Cloudflare to generate captions
+        const captionResponse = await requestCloudflareCaptionGeneration(uid, 'en')
+        console.log('✅ Cloudflare caption generation requested:', captionResponse)
+
+      } catch (captionError) {
+        console.error('❌ Failed to request caption generation:', captionError)
         
-        const { data: job, error: jobError } = await supabaseAdmin
-          .from('transcript_jobs')
-          .insert({
-            video_id: video.id,
-            status: 'queued',
-            provider: 'deepgram',
-            attempts: 0,
-            next_attempt_at: new Date().toISOString()
+        // Update transcript status to error
+        await supabaseAdmin.from('transcripts')
+          .update({ 
+            status: 'error', 
+            updated_at: new Date().toISOString() 
           })
-          .select()
-          .single()
+          .eq('video_id', video.id)
+          .eq('lang', 'en')
 
-        if (jobError) {
-          console.error('❌ Failed to create transcription job:', jobError)
-          return NextResponse.json(
-            { error: 'Failed to create transcription job' },
-            { status: 500 }
-          )
-        }
-
-        console.log(`✅ Transcription job created: ${job.id} for video ${video.id}`)
-        console.log(`📋 Job status: ${job.status}, next attempt: ${job.next_attempt_at}`)
-
-        // Trigger immediate transcription processing
-        try {
-          console.log(`🚀 Triggering immediate transcription for video ${video.id}`)
-          
-          const baseUrl = 'https://platform-gamma-flax.vercel.app'
-          const response = await fetch(`${baseUrl}/api/transcripts/dequeue`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          })
-
-          if (response.ok) {
-            const result = await response.json()
-            console.log(`✅ Immediate transcription triggered successfully:`, result)
-          } else {
-            console.error(`❌ Failed to trigger immediate transcription:`, await response.text())
-          }
-        } catch (triggerError) {
-          console.error(`❌ Error triggering immediate transcription:`, triggerError)
-          // Don't fail the webhook - transcription will still happen via cron
-        }
-
-        // Note: Chapter generation will be triggered after transcription is complete
-        // via the Deepgram webhook handler, not here
-        
-      } catch (jobError) {
-        console.error('❌ Failed to create transcription job:', jobError)
-        // Don't fail the webhook if job creation fails
-        // The job can be created later via manual retry
+        // Don't fail the whole webhook - just log the error
+        console.warn('⚠️ Caption generation failed, but video is still ready')
       }
-      
-      console.log(`🎉 Video ${video.id} is ready for playback and transcription processing started`)
+
+      return NextResponse.json({ 
+        success: true,
+        video_id: video.id,
+        playback_id: uid,
+        status: 'ready'
+      })
+
     } else {
-      console.log('[CF WEBHOOK] skipped event', { 
-        type: payload.type, 
-        status: status?.state, 
-        readyToStream: readyToStream,
-        uid: uid 
-      });
+      console.log('⏳ Video not ready yet, ignoring webhook')
+      return NextResponse.json({ success: true, status: 'not_ready' })
     }
-    
-    if (status?.state === 'error') {
-      console.error(`❌ Cloudflare Stream video ${uid} failed to process:`, body)
-      console.error(`Error reason: ${status?.errReasonCode} - ${status?.errReasonText}`)
-      
-      // Update video status to error
-      const { data: video } = await supabaseAdmin
-        .from('videos')
-        .select('id, title')
-        .eq('asset_id', uid)
-        .single()
-      
-      if (video) {
-        await supabaseAdmin
-          .from('videos')
-          .update({ status: 'error' })
-          .eq('id', video.id)
-        console.log(`❌ Updated video ${video.id} to error status`)
-      }
-    } else if (status?.state !== 'ready') {
-      console.log(`ℹ️ Cloudflare Stream video ${uid} status: ${status?.state}, readyToStream: ${readyToStream}`)
-    }
-
-    return NextResponse.json({ success: true })
 
   } catch (error) {
-    console.error('Cloudflare Stream webhook error:', error)
+    console.error('❌ Webhook processing error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Webhook processing failed' },
       { status: 500 }
     )
   }

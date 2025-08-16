@@ -1,20 +1,40 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
 
 interface VideoPlayerProps {
   playbackId: string
   title?: string
   className?: string
   aspectRatio?: string
-  srtUrl?: string // Add SRT URL for captions
+  srtUrl?: string // Legacy SRT URL for captions
+  onPlayerReady?: (getCurrentTime: () => number, seekTo: (seconds: number) => void) => void
 }
 
-export default function VideoPlayer({ playbackId, title, className = '', aspectRatio = '16/9', srtUrl }: VideoPlayerProps) {
+export default function VideoPlayer({ 
+  playbackId, 
+  title, 
+  className = '', 
+  aspectRatio = '16/9', 
+  srtUrl,
+  onPlayerReady 
+}: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
   const [showCaptions, setShowCaptions] = useState(true) // Default to showing captions like YouTube
+  const [isPlayerReady, setIsPlayerReady] = useState(false)
   
+  // Functions for transcript panel integration
+  const getCurrentTime = useCallback(() => {
+    return videoRef.current?.currentTime || 0
+  }, [])
+
+  const seekTo = useCallback((seconds: number) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = seconds
+    }
+  }, [])
+
   useEffect(() => {
     if (videoRef.current && playbackId) {
       // Use Cloudflare Stream URL format
@@ -24,6 +44,13 @@ export default function VideoPlayer({ playbackId, title, className = '', aspectR
       if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Native HLS support (Safari)
         videoRef.current.src = videoUrl
+        
+        videoRef.current.onloadedmetadata = () => {
+          setIsPlayerReady(true)
+          if (onPlayerReady) {
+            onPlayerReady(getCurrentTime, seekTo)
+          }
+        }
       } else {
         // Use HLS.js for other browsers - dynamic import to avoid build issues
         import('hls.js').then((Hls) => {
@@ -35,6 +62,13 @@ export default function VideoPlayer({ playbackId, title, className = '', aspectR
             hlsRef.current = new Hls.default()
             hlsRef.current.loadSource(videoUrl)
             hlsRef.current.attachMedia(videoRef.current)
+            
+            hlsRef.current.on(Hls.default.Events.MANIFEST_PARSED, () => {
+              setIsPlayerReady(true)
+              if (onPlayerReady) {
+                onPlayerReady(getCurrentTime, seekTo)
+              }
+            })
             
             hlsRef.current.on(Hls.default.Events.ERROR, (event: any, data: any) => {
               console.error('HLS error:', data)
@@ -53,7 +87,7 @@ export default function VideoPlayer({ playbackId, title, className = '', aspectR
         hlsRef.current.destroy()
       }
     }
-  }, [playbackId])
+  }, [playbackId, onPlayerReady, getCurrentTime, seekTo])
 
   return (
     <div className={`relative ${className}`} style={{ aspectRatio }}>
