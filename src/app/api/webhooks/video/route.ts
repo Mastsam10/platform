@@ -168,8 +168,8 @@ export async function POST(request: NextRequest) {
         // Update transcript status to error
         await supabaseAdmin.from('transcripts')
           .update({ 
-            status: 'error', 
-            updated_at: new Date().toISOString() 
+            status: 'error',
+            updated_at: new Date().toISOString()
           })
           .eq('video_id', video.id)
           .eq('lang', 'en')
