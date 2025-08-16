@@ -1,13 +1,12 @@
--- Migration: Cleanup Legacy Tables and Columns
+-- Migration: Comprehensive Database Cleanup
 -- Date: 2024-01-XX
--- Description: Remove old Deepgram/Mux tables and columns after Cloudflare Stream migration
+-- Description: Remove all unnecessary tables and keep only core video platform functionality
 
 -- ========================================
--- STEP 1: Remove legacy tables (with better error handling)
+-- STEP 1: Remove all legacy and unnecessary tables
 -- ========================================
 
--- Drop transcript_jobs table (replaced by transcripts table)
--- Note: This table may already be dropped, which is fine
+-- Remove old transcript system tables
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'transcript_jobs') THEN
@@ -18,8 +17,6 @@ BEGIN
   END IF;
 END $$;
 
--- Drop captions table (replaced by transcripts table)
--- Note: This table may already be dropped, which is fine
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'captions') THEN
@@ -27,6 +24,47 @@ BEGIN
     RAISE NOTICE 'captions table dropped successfully';
   ELSE
     RAISE NOTICE 'captions table does not exist (already cleaned up)';
+  END IF;
+END $$;
+
+-- Remove church-specific tables (not needed for core video platform)
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'addresses') THEN
+    DROP TABLE addresses CASCADE;
+    RAISE NOTICE 'addresses table dropped successfully';
+  ELSE
+    RAISE NOTICE 'addresses table does not exist (already cleaned up)';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'churches') THEN
+    DROP TABLE churches CASCADE;
+    RAISE NOTICE 'churches table dropped successfully';
+  ELSE
+    RAISE NOTICE 'churches table does not exist (already cleaned up)';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'denominations') THEN
+    DROP TABLE denominations CASCADE;
+    RAISE NOTICE 'denominations table dropped successfully';
+  ELSE
+    RAISE NOTICE 'denominations table does not exist (already cleaned up)';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'service_times') THEN
+    DROP TABLE service_times CASCADE;
+    RAISE NOTICE 'service_times table dropped successfully';
+  ELSE
+    RAISE NOTICE 'service_times table does not exist (already cleaned up)';
   END IF;
 END $$;
 
@@ -71,64 +109,63 @@ END $$;
 -- STEP 3: Clean up any orphaned triggers/functions
 -- ========================================
 
--- Drop transcript_jobs triggers if they exist
+-- Drop all legacy triggers and functions
 DO $$
+DECLARE
+    trigger_name text;
+    function_name text;
 BEGIN
-  IF EXISTS (SELECT FROM pg_trigger WHERE tgname = 'update_transcript_jobs_updated_at') THEN
-    DROP TRIGGER IF EXISTS update_transcript_jobs_updated_at ON transcript_jobs;
-    RAISE NOTICE 'transcript_jobs trigger dropped successfully';
-  ELSE
-    RAISE NOTICE 'transcript_jobs trigger does not exist (already cleaned up)';
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM pg_proc WHERE proname = 'update_transcript_jobs_updated_at') THEN
-    DROP FUNCTION IF EXISTS update_transcript_jobs_updated_at();
-    RAISE NOTICE 'transcript_jobs function dropped successfully';
-  ELSE
-    RAISE NOTICE 'transcript_jobs function does not exist (already cleaned up)';
-  END IF;
-END $$;
-
--- Drop captions triggers if they exist  
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM pg_trigger WHERE tgname = 'update_captions_updated_at') THEN
-    DROP TRIGGER IF EXISTS update_captions_updated_at ON captions;
-    RAISE NOTICE 'captions trigger dropped successfully';
-  ELSE
-    RAISE NOTICE 'captions trigger does not exist (already cleaned up)';
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT FROM pg_proc WHERE proname = 'update_captions_updated_at') THEN
-    DROP FUNCTION IF EXISTS update_captions_updated_at();
-    RAISE NOTICE 'captions function dropped successfully';
-  ELSE
-    RAISE NOTICE 'captions function does not exist (already cleaned up)';
-  END IF;
+    -- Drop transcript_jobs related triggers
+    FOR trigger_name IN 
+        SELECT tgname FROM pg_trigger WHERE tgname LIKE '%transcript_jobs%'
+    LOOP
+        EXECUTE 'DROP TRIGGER IF EXISTS ' || trigger_name || ' ON transcript_jobs CASCADE';
+        RAISE NOTICE 'Dropped trigger: %', trigger_name;
+    END LOOP;
+    
+    -- Drop captions related triggers
+    FOR trigger_name IN 
+        SELECT tgname FROM pg_trigger WHERE tgname LIKE '%captions%'
+    LOOP
+        EXECUTE 'DROP TRIGGER IF EXISTS ' || trigger_name || ' ON captions CASCADE';
+        RAISE NOTICE 'Dropped trigger: %', trigger_name;
+    END LOOP;
+    
+    -- Drop legacy functions
+    FOR function_name IN 
+        SELECT proname FROM pg_proc WHERE proname IN (
+            'update_transcript_jobs_updated_at',
+            'update_captions_updated_at'
+        )
+    LOOP
+        EXECUTE 'DROP FUNCTION IF EXISTS ' || function_name || '() CASCADE';
+        RAISE NOTICE 'Dropped function: %', function_name;
+    END LOOP;
 END $$;
 
 -- ========================================
--- STEP 4: Verify cleanup
+-- STEP 4: Verify cleanup and show final state
 -- ========================================
 
--- Show remaining tables
+-- Show all remaining tables with status
 SELECT 
   table_name,
   CASE 
     WHEN table_name IN ('videos', 'transcripts', 'video_tags', 'channels', 'users') 
-    THEN '✅ KEEPING'
+    THEN '✅ KEEPING (Core Platform)'
     ELSE '❌ SHOULD BE REMOVED'
-  END AS status
+  END AS status,
+  CASE 
+    WHEN table_name IN ('videos', 'transcripts', 'video_tags', 'channels', 'users') 
+    THEN 'Essential for video platform functionality'
+    ELSE 'Legacy or unnecessary table'
+  END AS reason
 FROM information_schema.tables 
 WHERE table_schema = 'public' 
 AND table_type = 'BASE TABLE'
-ORDER BY table_name;
+ORDER BY 
+  CASE WHEN table_name IN ('videos', 'transcripts', 'video_tags', 'channels', 'users') THEN 0 ELSE 1 END,
+  table_name;
 
 -- Show videos table columns
 SELECT 
@@ -158,16 +195,33 @@ COMMENT ON TABLE users IS 'User authentication and authorization';
 -- SUMMARY
 -- ========================================
 
--- This migration removes:
+-- This migration removes ALL unnecessary tables:
 -- ❌ transcript_jobs table (replaced by transcripts)
 -- ❌ captions table (replaced by transcripts)  
+-- ❌ addresses table (not needed for core platform)
+-- ❌ churches table (not needed for core platform)
+-- ❌ denominations table (not needed for core platform)
+-- ❌ service_times table (not needed for core platform)
 -- ❌ videos.srt_url column (replaced by transcripts.vtt_url)
 -- ❌ videos.asset_id column (Cloudflare uses UID)
 -- ❌ videos.upload_id column (not needed with Direct Creator Uploads)
 --
--- This keeps:
+-- This keeps ONLY essential tables:
 -- ✅ videos table (core functionality)
 -- ✅ transcripts table (new Cloudflare captions)
 -- ✅ video_tags table (chapters and topics)
 -- ✅ channels table (organization)
 -- ✅ users table (authentication)
+
+-- ========================================
+-- FINAL VERIFICATION
+-- ========================================
+
+-- Count remaining tables
+SELECT 
+  COUNT(*) as total_tables,
+  COUNT(CASE WHEN table_name IN ('videos', 'transcripts', 'video_tags', 'channels', 'users') THEN 1 END) as essential_tables,
+  COUNT(CASE WHEN table_name NOT IN ('videos', 'transcripts', 'video_tags', 'channels', 'users') THEN 1 END) as unnecessary_tables
+FROM information_schema.tables 
+WHERE table_schema = 'public' 
+AND table_type = 'BASE TABLE';
