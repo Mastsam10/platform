@@ -212,6 +212,96 @@ The webhook system works perfectly when videos are in the correct "processing" s
 - Let the webhook system handle the final "ready" state
 - The webhook correlation works correctly when videos are in "processing" state
 
+## CRITICAL DISCOVERY: Cloudflare Stream Caption Synchronization Issue
+
+### Problem: Captions available in Cloudflare but not reflected in database
+
+**Discovery Date:** August 17, 2024
+
+**Symptoms:**
+- Cloudflare Stream dashboard shows captions as "Ready" ✅
+- Video player displays captions correctly ✅
+- Database shows `has_captions: false` ❌
+- "Show Transcript" button hidden on video watch page ❌
+- Transcript panel shows "No transcript available" ❌
+
+**Root Cause:**
+The VideoList component was only checking caption status for videos that **already had `has_captions: false`**, but it should check **all ready videos** to detect newly available captions. This created a synchronization gap where:
+
+1. **Cloudflare generates captions** → captions ready in Cloudflare
+2. **Database not updated** → `has_captions` remains false
+3. **UI doesn't show transcript button** → because `has_captions: false`
+4. **Transcript polling doesn't run** → because `has_captions: false`
+
+**Evidence:**
+- Video "test6" had captions ready in Cloudflare: `"captions":[{"language":"en","label":"English (auto-generated)","generated":true,"status":"ready"}]`
+- But database showed: `"has_captions":false`
+- Manual call to `/api/transcripts/check-status` successfully updated database to `"has_captions":true`
+
+**The Fix:**
+Modified VideoList component to check caption status for **ALL ready videos**, not just those without `has_captions`:
+
+```typescript
+// OLD CODE (problematic):
+if (video.status === 'ready' && video.playback_id && !video.has_captions) {
+  // Only checked videos without captions
+}
+
+// NEW CODE (fixed):
+if (video.status === 'ready' && video.playback_id) {
+  // Check ALL ready videos for newly available captions
+  if (captionData.captionsReady && !video.has_captions) {
+    video.has_captions = true
+    console.log(`✅ Captions detected for video ${video.title}`)
+  }
+}
+```
+
+**Key Insights:**
+- **Caption detection must be proactive** - check all ready videos, not just those marked as not having captions
+- **Cloudflare captions work perfectly** - the issue was database synchronization, not caption generation
+- **Manual intervention works** - `/api/transcripts/check-status` endpoint correctly updates database
+- **UI depends on database state** - transcript button only shows when `has_captions: true`
+
+**Why This Works:**
+- Proactive caption detection catches newly available captions
+- Database stays synchronized with Cloudflare's caption status
+- UI correctly shows transcript functionality when captions are available
+- Transcript polling runs when `has_captions: true`
+
+**Prevention:**
+- Always check caption status for ALL ready videos, not just those without `has_captions`
+- Monitor for videos with captions in Cloudflare but `has_captions: false` in database
+- Use `/api/transcripts/check-status` endpoint for manual synchronization if needed
+- Consider implementing periodic caption status checks for all videos
+
+**CRITICAL: This fix ensures that all videos with ready captions in Cloudflare will automatically show the transcript functionality without manual intervention.**
+
+### What Should NOT Change When Fixing Caption Issues
+
+**DO NOT modify these working components:**
+
+1. **VideoPlayer component** - Captions are working perfectly in the video player
+   - The `<track>` element with Cloudflare VTT URL works correctly
+   - Native video player CC button functions properly
+   - Captions display on video as expected
+
+2. **Cloudflare API integration** - All Cloudflare API calls work correctly
+   - `cloudflareStream.hasCaptions()` returns correct status
+   - `cloudflareStream.getCaptionVtt()` fetches VTT content properly
+   - `/api/transcripts/check-status` endpoint updates database correctly
+
+3. **Transcript parsing and storage** - The transcript system works when data is available
+   - VTT parsing to JSON works correctly
+   - Database storage in `transcripts` table functions properly
+   - `useTranscriptPolling` hook works when `has_captions: true`
+
+4. **Webhook caption generation** - Automatic caption generation works
+   - Webhook requests Cloudflare caption generation successfully
+   - Caption generation is initiated automatically when videos are ready
+
+**The ONLY issue was database synchronization** - the `has_captions` field not being updated proactively. The fix was to check ALL ready videos for captions, not just those already marked as not having captions.
+
 ## CRITICAL DISCOVERY: Cloudflare Stream Transcription URL Requirements
 
 ### Problem: Deepgram requires valid playback_id for Cloudflare Stream transcription
@@ -558,6 +648,9 @@ curl https://platform-gamma-flax.vercel.app/api/debug/check-transcript-status
 18. **Signed URLs are essential for secure external service access**
 19. **Cloudflare UID serves as both asset_id and playback_id**
 20. **Job rescheduling prevents timing-related failures in transcription system**
+21. **CRITICAL: Check caption status for ALL ready videos, not just those without `has_captions` - proactive detection prevents synchronization gaps**
+22. **Cloudflare captions work perfectly - database synchronization issues are the root cause of transcript UI problems**
+23. **UI transcript functionality depends entirely on database `has_captions` field - keep it synchronized with Cloudflare**
 
 ## Systematic Change Management
 

@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
       videoId,
       playbackId,
       linesCount: lines.length,
+      lines: lines,
       vttUrl: `https://videodelivery.net/${playbackId}/captions/${lang}.vtt`
     })
 
