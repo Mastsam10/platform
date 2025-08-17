@@ -42,47 +42,32 @@ export async function GET(request: NextRequest) {
 
     console.log(`🔍 Searching for: "${query}"`)
 
-    // Build the search query with weights
-    const searchQuery = `'${query.replace(/'/g, "''")}':*`
-    
-    let sqlQuery = `
-      SELECT 
-        v.id,
-        v.title,
-        v.description,
-        v.playback_id,
-        v.has_captions,
-        v.search_vector,
-        c.name as channel_name,
-        c.denomination as channel_denomination,
-        ts_rank(v.search_vector, plainto_tsquery('english', $1)) as search_rank,
-        t.lines as transcript_lines
-      FROM videos v
-      LEFT JOIN channels c ON v.channel_id = c.id
-      LEFT JOIN transcripts t ON v.id = t.video_id AND t.lang = 'en' AND t.status = 'ready'
-      WHERE v.status = 'ready'
-        AND v.search_vector @@ plainto_tsquery('english', $1)
-    `
-
-    const params: any[] = [query]
+    // Build the search query using LIKE
+    let searchQuery = supabaseAdmin
+      .from('videos')
+      .select(`
+        id,
+        title,
+        description,
+        playback_id,
+        has_captions,
+        created_at,
+        channels (name, denomination)
+      `)
+      .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
+      .eq('status', 'ready')
 
     // Add channel filter if specified
     if (channelId) {
-      sqlQuery += ` AND v.channel_id = $${params.length + 1}`
-      params.push(channelId)
+      searchQuery = searchQuery.eq('channel_id', channelId)
     }
 
     // Add ordering and pagination
-    sqlQuery += `
-      ORDER BY search_rank DESC, v.created_at DESC
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-    `
-    params.push(limit, offset)
+    searchQuery = searchQuery
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
 
-    const { data: videos, error } = await supabaseAdmin.rpc('exec_sql', {
-      sql_query: sqlQuery,
-      params: params
-    })
+    const { data: videos, error } = await searchQuery
 
     if (error) {
       console.error('❌ Search query error:', error)
@@ -92,25 +77,43 @@ export async function GET(request: NextRequest) {
       }, { status: 500 })
     }
 
+    // Get transcripts for videos that have them
+    const videoIds = videos?.map(v => v.id) || []
+    let transcripts: any[] = []
+    
+    if (videoIds.length > 0) {
+      const { data: transcriptData, error: transcriptError } = await supabaseAdmin
+        .from('transcripts')
+        .select('video_id, lines')
+        .in('video_id', videoIds)
+        .eq('lang', 'en')
+        .eq('status', 'ready')
+
+      if (!transcriptError) {
+        transcripts = transcriptData || []
+      }
+    }
+
     // Process results and find transcript matches
     const results: SearchResult[] = await Promise.all(
-      videos.map(async (video: any) => {
+      (videos || []).map(async (video: any) => {
         const result: SearchResult = {
           id: video.id,
           title: video.title,
           description: video.description,
           playback_id: video.playback_id,
           has_captions: video.has_captions,
-          channels: video.channel_name ? {
-            name: video.channel_name,
-            denomination: video.channel_denomination
+          channels: video.channels ? {
+            name: video.channels.name,
+            denomination: video.channels.denomination
           } : undefined,
-          search_rank: video.search_rank
+          search_rank: 1.0 // Simple ranking for now
         }
 
         // Find transcript matches if transcript exists
-        if (video.transcript_lines && Array.isArray(video.transcript_lines)) {
-          const transcriptMatches = findTranscriptMatches(query, video.transcript_lines)
+        const videoTranscript = transcripts.find(t => t.video_id === video.id)
+        if (videoTranscript && videoTranscript.lines && Array.isArray(videoTranscript.lines)) {
+          const transcriptMatches = findTranscriptMatches(query, videoTranscript.lines)
           if (transcriptMatches.length > 0) {
             result.transcript_matches = transcriptMatches
             result.matched_text = transcriptMatches[0].text
@@ -122,31 +125,25 @@ export async function GET(request: NextRequest) {
     )
 
     // Get total count for pagination
-    let countQuery = `
-      SELECT COUNT(*) as total
-      FROM videos v
-      WHERE v.status = 'ready'
-        AND v.search_vector @@ plainto_tsquery('english', $1)
-    `
-    const countParams = [query]
+    let countQuery = supabaseAdmin
+      .from('videos')
+      .select('id', { count: 'exact', head: true })
+      .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
+      .eq('status', 'ready')
 
     if (channelId) {
-      countQuery += ` AND v.channel_id = $2`
-      countParams.push(channelId)
+      countQuery = countQuery.eq('channel_id', channelId)
     }
 
-    const { data: countResult, error: countError } = await supabaseAdmin.rpc('exec_sql', {
-      sql_query: countQuery,
-      params: countParams
-    })
+    const { count, error: countError } = await countQuery
 
-    const total = countError ? results.length : (countResult[0]?.total || 0)
+    const total = countError ? results.length : (count || 0)
 
     console.log(`✅ Search completed: ${results.length} results found`)
 
     return NextResponse.json({
       results,
-      total: parseInt(total),
+      total: parseInt(total.toString()),
       query,
       hasMore: offset + limit < total
     })
