@@ -1,0 +1,42 @@
+# Page snapshot
+
+```yaml
+- button "Switch to dark mode":
+  - img
+- heading "Video Platform" [level=1]
+- button "Upload Video"
+- heading "Recent Videos" [level=2]
+- link "test3":
+  - /url: /videos/66964545-eb6a-469b-a5af-112a36d80b6a
+  - heading "test3" [level=3]
+- paragraph: Ready
+- paragraph: "Channel: Default Channel"
+- paragraph: "Denomination: Christian"
+- text: Your browser does not support the video tag.
+- paragraph: test3
+- link "test2":
+  - /url: /videos/598e78c0-5b5e-40d2-a744-c890dc0fb07f
+  - heading "test2" [level=3]
+- paragraph: Ready
+- paragraph: "Channel: Default Channel"
+- paragraph: "Denomination: Christian"
+- text: Your browser does not support the video tag.
+- paragraph: test2
+- link "test1":
+  - /url: /videos/ca3cea36-de1f-4565-8762-fc5ecfa80635
+  - heading "test1" [level=3]
+- paragraph: Ready
+- paragraph: "Channel: Default Channel"
+- paragraph: "Denomination: Christian"
+- text: Your browser does not support the video tag.
+- paragraph: test1
+- link "test":
+  - /url: /videos/10ac67c9-4324-478f-951b-f71b495cd19d
+  - heading "test" [level=3]
+- paragraph: Ready
+- paragraph: "Channel: Default Channel"
+- paragraph: "Denomination: Christian"
+- text: Your browser does not support the video tag.
+- paragraph: test
+- alert
+```

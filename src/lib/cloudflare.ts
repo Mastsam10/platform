@@ -21,6 +21,12 @@ export interface CloudflareStreamResponse {
       dash: string
     }
     downloadUrl: string
+    captions?: Array<{
+      language: string
+      label: string
+      status: 'pending' | 'ready' | 'error'
+      url?: string
+    }>
   }
 }
 
@@ -130,6 +136,33 @@ export class CloudflareStream {
     } catch (error) {
       console.error('Error checking video status:', error)
       return false
+    }
+  }
+
+  /**
+   * Check if video has captions available
+   */
+  async hasCaptions(uid: string): Promise<boolean> {
+    try {
+      const video = await this.getVideo(uid)
+      return video.result.captions?.some(caption => caption.status === 'ready') || false
+    } catch (error) {
+      console.error('Error checking captions:', error)
+      return false
+    }
+  }
+
+  /**
+   * Get caption URL for a specific language
+   */
+  async getCaptionUrl(uid: string, language: string = 'en'): Promise<string | null> {
+    try {
+      const video = await this.getVideo(uid)
+      const caption = video.result.captions?.find(c => c.language === language && c.status === 'ready')
+      return caption?.url || null
+    } catch (error) {
+      console.error('Error getting caption URL:', error)
+      return null
     }
   }
 }
