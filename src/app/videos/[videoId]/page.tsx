@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import VideoPlayer from '@/components/VideoPlayer'
 import TranscriptPanel from '@/components/TranscriptPanel'
 import { useTranscriptPolling } from '@/hooks/useTranscriptPolling'
@@ -22,6 +22,7 @@ interface Video {
 
 export default function VideoWatchPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const videoId = params.videoId as string
   
   const [video, setVideo] = useState<Video | null>(null)
@@ -71,6 +72,20 @@ export default function VideoWatchPage() {
     setGetCurrentTime(() => getTime)
     setSeekTo(() => seek)
   }
+
+  // Handle timestamp from URL (e.g., ?t=30 for 30 seconds)
+  useEffect(() => {
+    const timestamp = searchParams.get('t')
+    if (timestamp && seekTo) {
+      const seconds = parseInt(timestamp)
+      if (!isNaN(seconds) && seconds >= 0) {
+        // Small delay to ensure player is ready
+        setTimeout(() => {
+          seekTo(seconds)
+        }, 500)
+      }
+    }
+  }, [searchParams, seekTo])
 
   if (loading) {
     return (

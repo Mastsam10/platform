@@ -300,7 +300,16 @@ if (video.status === 'ready' && video.playback_id) {
    - Webhook requests Cloudflare caption generation successfully
    - Caption generation is initiated automatically when videos are ready
 
-**The ONLY issue was database synchronization** - the `has_captions` field not being updated proactively. The fix was to check ALL ready videos for captions, not just those already marked as not having captions.
+5. **Transcript panel display** - The transcript UI works correctly
+   - `useTranscriptPolling` hook receives and processes transcript data
+   - `TranscriptPanel` component displays clickable timestamps
+   - Click-to-seek functionality works properly
+
+**The ONLY issues were:**
+1. **Database synchronization** - the `has_captions` field not being updated proactively (FIXED)
+2. **Response format mismatch** - finalize endpoint not returning `lines` array (FIXED)
+
+Both issues have been resolved and the complete transcript system is now functional.
 
 ## CRITICAL DISCOVERY: Cloudflare Stream Transcription URL Requirements
 
@@ -770,6 +779,71 @@ const signedUrl = cloudflareStreamSigning.generateSignedDownloadUrl(uid, 300)
 - Document service limitations and workarounds
 - Be willing to pivot when fundamental issues are discovered
 
+## CRITICAL DISCOVERY: Transcript Panel Display Issue - RESOLVED
+
+### Problem: Transcript panel showing "No transcript available" despite captions being ready
+
+**Discovery Date:** August 17, 2024
+
+**Symptoms:**
+- Cloudflare Stream dashboard shows captions as "Ready" ✅
+- Video player displays captions correctly ✅
+- Database shows `has_captions: true` ✅
+- "Show Transcript" button visible on video watch page ✅
+- **Transcript panel shows "No transcript available"** ❌
+
+**Root Cause:**
+The `/api/transcripts/finalize` endpoint was successfully parsing and storing transcript data, but **not returning the `lines` array in its JSON response**. The `useTranscriptPolling` hook expected `data.lines` but only received `linesCount`.
+
+**Evidence:**
+- Finalize endpoint response: `{"ok":true,"linesCount":4,"vttUrl":"..."}` (missing `lines` array)
+- useTranscriptPolling expected: `{lines: [...], vttUrl: "..."}` (expects `lines` array)
+- Database storage worked correctly - transcript data was stored
+- VTT parsing worked correctly - lines were parsed successfully
+
+**The Fix:**
+Added `lines: lines,` to the finalize endpoint response:
+
+```typescript
+// In src/app/api/transcripts/finalize/route.ts
+return NextResponse.json({ 
+  ok: true,
+  videoId,
+  playbackId,
+  linesCount: lines.length,
+  lines: lines, // ← Added this line
+  vttUrl: `https://videodelivery.net/${playbackId}/captions/${lang}.vtt`
+})
+```
+
+**Why This Works:**
+- The finalize endpoint now returns the parsed transcript lines
+- useTranscriptPolling receives `data.lines` and sets the `transcript` state
+- TranscriptPanel receives the lines and displays them as clickable timestamps
+- Users can click on transcript lines to seek to specific parts of the video
+
+**Key Insights:**
+- **Response format mismatch** was the root cause - not a data processing issue
+- **All systems were working correctly** - Cloudflare captions, VTT parsing, database storage
+- **Minimal fix required** - just one line change to return the parsed data
+- **Frontend-backend synchronization** depends on exact response format matching
+
+**What Went Right:**
+1. **Cloudflare Stream captions work perfectly** - auto-caption generation and VTT delivery
+2. **VTT parsing is robust** - successfully parses Cloudflare's VTT format
+3. **Database synchronization works** - `has_captions` field updates correctly
+4. **UI components are functional** - transcript panel and polling hook work when data is provided
+5. **Systematic debugging approach** - identified the exact point of failure through API testing
+
+**Prevention:**
+- Always verify API response formats match frontend expectations
+- Test complete data flow from backend to frontend
+- Use systematic debugging to isolate issues (backend vs frontend)
+- Document expected response formats for all API endpoints
+- Test transcript functionality with actual video data, not just mock data
+
+**CRITICAL: This fix completes the YouTube-style transcript functionality. Users can now see auto-generated captions as clickable timestamps next to the video player.**
+
 ---
 
-*Last updated: August 15, 2024*
+*Last updated: August 17, 2024*
