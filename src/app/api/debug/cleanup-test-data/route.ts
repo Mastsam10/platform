@@ -1,87 +1,69 @@
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Starting cleanup of test data...')
+    console.log('🧹 Starting comprehensive test data cleanup...')
 
-    // First, get all videos to see what we're deleting
+    // Step 1: Get all videos first
     const { data: videos, error: fetchError } = await supabaseAdmin
       .from('videos')
-      .select('id, title, asset_id')
+      .select('id, title, playback_id')
 
     if (fetchError) {
-      console.error('Failed to fetch videos:', fetchError)
+      console.error('❌ Failed to fetch videos:', fetchError)
       return NextResponse.json({ 
-        error: 'Failed to fetch videos' 
+        error: 'Failed to fetch videos',
+        details: fetchError.message 
       }, { status: 500 })
     }
 
-    console.log(`Found ${videos?.length || 0} videos to delete`)
+    console.log(`📊 Found ${videos?.length || 0} videos to delete`)
 
-    // Delete video_tags (chapters) first (due to foreign key constraints)
-    const { error: tagsError } = await supabaseAdmin
-      .from('video_tags')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
-
-    if (tagsError) {
-      console.error('Failed to delete video_tags:', tagsError)
-      return NextResponse.json({ 
-        error: 'Failed to delete video_tags' 
-      }, { status: 500 })
-    }
-
-    console.log('Deleted all video_tags')
-
-    // Delete captions (transcripts)
-    const { error: captionsError } = await supabaseAdmin
-      .from('captions')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
-
-    if (captionsError) {
-      console.error('Failed to delete captions:', captionsError)
-      // Continue anyway, captions table might not exist
-    } else {
-      console.log('Deleted all captions')
-    }
-
-    // Delete videos
-    const { error: videosError } = await supabaseAdmin
+    // Step 2: Delete all videos (this will cascade delete transcripts and video_tags)
+    const { error: deleteError } = await supabaseAdmin
       .from('videos')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
+      .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all videos
 
-    if (videosError) {
-      console.error('Failed to delete videos:', videosError)
+    if (deleteError) {
+      console.error('❌ Failed to delete videos:', deleteError)
       return NextResponse.json({ 
-        error: 'Failed to delete videos' 
+        error: 'Failed to delete videos',
+        details: deleteError.message 
       }, { status: 500 })
     }
 
-    console.log('Deleted all videos')
+    console.log(`✅ Successfully deleted ${videos?.length || 0} videos from database`)
 
-    // Verify cleanup
+    // Step 3: Verify deletion
     const { data: remainingVideos, error: verifyError } = await supabaseAdmin
       .from('videos')
-      .select('count')
+      .select('id')
+      .limit(1)
 
     if (verifyError) {
-      console.error('Failed to verify cleanup:', verifyError)
+      console.error('❌ Failed to verify deletion:', verifyError)
+    } else {
+      console.log(`📊 Remaining videos: ${remainingVideos?.length || 0}`)
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'All test data cleaned up successfully',
-      deletedVideos: videos || [],
-      remainingVideos: remainingVideos?.length || 0
+    return NextResponse.json({ 
+      success: true, 
+      message: `Successfully deleted ${videos?.length || 0} videos and all related data`,
+      deletedCount: videos?.length || 0,
+      remainingVideos: remainingVideos?.length || 0,
+      note: 'Videos deleted from database. Cloudflare cleanup may be needed separately.'
     })
 
   } catch (error) {
-    console.error('Cleanup error:', error)
-    return NextResponse.json({ 
-      error: 'Internal server error' 
+    console.error('❌ Cleanup error:', error)
+    return NextResponse.json({
+      error: 'Cleanup failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
   }
 }
