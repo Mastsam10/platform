@@ -164,8 +164,8 @@ export default function VideoWatchPage() {
                   </p>
                 </div>
                 
-                {/* Show Transcript Button */}
-                {video.has_captions && (
+                {/* Show Transcript Button - Always show if video is ready */}
+                {video.status === 'ready' && (
                   <button
                     onClick={() => setShowTranscript(!showTranscript)}
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors font-medium"
@@ -176,23 +176,21 @@ export default function VideoWatchPage() {
               </div>
 
               {/* Expandable Description */}
-              {video.description && (
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold text-gray-900 dark:text-white">Description</h4>
-                    <button
-                      onClick={() => setExpandedInfo(!expandedInfo)}
-                      className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
-                    >
-                      {expandedInfo ? 'Show less' : 'Show more'}
-                    </button>
-                  </div>
-                  
-                  <div className={`text-gray-600 dark:text-gray-300 ${expandedInfo ? '' : 'line-clamp-2'}`}>
-                    {video.description}
-                  </div>
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-900 dark:text-white">Description</h4>
+                  <button
+                    onClick={() => setExpandedInfo(!expandedInfo)}
+                    className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+                  >
+                    {expandedInfo ? 'Show less' : 'Show more'}
+                  </button>
                 </div>
-              )}
+                
+                <div className={`text-gray-600 dark:text-gray-300 ${expandedInfo ? '' : 'line-clamp-2'}`}>
+                  {video.description || 'No description available for this video.'}
+                </div>
+              </div>
 
               {/* Additional Info (when expanded) */}
               {expandedInfo && (
