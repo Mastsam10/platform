@@ -71,19 +71,8 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
 
-    // 2) Fetch VTT content using the API (with better error handling)
-    let vttText: string | null = null
-    try {
-      vttText = await cloudflareStream.getCaptionVtt(playbackId, lang)
-      console.log(`🔍 VTT fetch result: ${vttText ? 'Success' : 'Null'}`)
-    } catch (vttError) {
-      console.error(`❌ VTT fetch error:`, vttError)
-      return NextResponse.json({ 
-        ok: false, 
-        error: 'Failed to fetch VTT content',
-        notReady: true
-      }, { status: 404 })
-    }
+    // 2) Fetch VTT content using the API
+    const vttText = await cloudflareStream.getCaptionVtt(playbackId, lang)
     
     if (!vttText) {
       console.log(`❌ Failed to fetch VTT content for video ${videoId}`)
