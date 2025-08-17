@@ -140,12 +140,41 @@ export class CloudflareStream {
   }
 
   /**
+   * List captions for a video using the dedicated captions API
+   */
+  async listCaptions(uid: string): Promise<Array<{
+    language: string
+    label: string
+    generated: boolean
+    status: 'inprogress' | 'ready' | 'error'
+  }>> {
+    try {
+      const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/${uid}/captions`, {
+        headers: {
+          'Authorization': `Bearer ${this.apiToken}`
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.text()
+        throw new Error(`Failed to list captions: ${error}`)
+      }
+
+      const data = await response.json()
+      return data.result || []
+    } catch (error) {
+      console.error('Error listing captions:', error)
+      return []
+    }
+  }
+
+  /**
    * Check if video has captions available
    */
   async hasCaptions(uid: string): Promise<boolean> {
     try {
-      const video = await this.getVideo(uid)
-      return video.result.captions?.some(caption => caption.status === 'ready') || false
+      const captions = await this.listCaptions(uid)
+      return captions.some(caption => caption.status === 'ready')
     } catch (error) {
       console.error('Error checking captions:', error)
       return false
@@ -153,13 +182,36 @@ export class CloudflareStream {
   }
 
   /**
-   * Get caption URL for a specific language
+   * Get caption VTT content for a specific language
+   */
+  async getCaptionVtt(uid: string, language: string = 'en'): Promise<string | null> {
+    try {
+      const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/${uid}/captions/${language}/vtt`, {
+        headers: {
+          'Authorization': `Bearer ${this.apiToken}`
+        }
+      })
+
+      if (!response.ok) {
+        console.error(`Failed to get caption VTT: ${response.status} ${response.statusText}`)
+        return null
+      }
+
+      return await response.text()
+    } catch (error) {
+      console.error('Error getting caption VTT:', error)
+      return null
+    }
+  }
+
+  /**
+   * Get caption URL for a specific language (for compatibility)
    */
   async getCaptionUrl(uid: string, language: string = 'en'): Promise<string | null> {
     try {
-      const video = await this.getVideo(uid)
-      const caption = video.result.captions?.find(c => c.language === language && c.status === 'ready')
-      return caption?.url || null
+      const captions = await this.listCaptions(uid)
+      const caption = captions.find(c => c.language === language && c.status === 'ready')
+      return caption ? `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/${uid}/captions/${language}/vtt` : null
     } catch (error) {
       console.error('Error getting caption URL:', error)
       return null

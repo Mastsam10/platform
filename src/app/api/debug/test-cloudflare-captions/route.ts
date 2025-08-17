@@ -19,18 +19,22 @@ export async function GET(request: NextRequest) {
     // Get full video details
     const video = await cloudflareStream.getVideo(playbackId)
     
+    // List captions using the dedicated API
+    const captions = await cloudflareStream.listCaptions(playbackId)
+    
     // Check if captions are available
     const hasCaptions = await cloudflareStream.hasCaptions(playbackId)
     
-    // Get caption URL
-    const captionUrl = await cloudflareStream.getCaptionUrl(playbackId, 'en')
+    // Get caption VTT content
+    const captionVtt = await cloudflareStream.getCaptionVtt(playbackId, 'en')
 
     return NextResponse.json({
       playbackId,
       videoDetails: video.result,
+      captions,
       hasCaptions,
-      captionUrl,
-      captionsArray: video.result.captions || []
+      captionVtt: captionVtt ? captionVtt.substring(0, 200) + '...' : null,
+      captionVttLength: captionVtt?.length || 0
     })
 
   } catch (error) {
