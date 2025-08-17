@@ -21,7 +21,6 @@ export default function VideoPlayer({
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<any>(null)
-  const [showCaptions, setShowCaptions] = useState(true) // Default to showing captions like YouTube
   const [isPlayerReady, setIsPlayerReady] = useState(false)
   
   // Functions for transcript panel integration
@@ -103,24 +102,13 @@ export default function VideoPlayer({
             src={`https://videodelivery.net/${playbackId}/captions/en.vtt`}
             srcLang="en"
             label="English"
-            default={showCaptions}
+            default={true}
           />
         )}
         Your browser does not support the video tag.
       </video>
       
-      {/* Caption Controls - YouTube-style */}
-      {hasCaptions && (
-        <div className="absolute top-2 right-2 flex gap-2">
-          <button
-            onClick={() => setShowCaptions(!showCaptions)}
-            className="bg-black bg-opacity-70 text-white px-3 py-1 rounded text-sm hover:bg-opacity-90 transition-all"
-            title={showCaptions ? 'Hide Captions' : 'Show Captions'}
-          >
-            {showCaptions ? 'CC' : 'CC'}
-          </button>
-        </div>
-      )}
+
       
       {title && (
         <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2 rounded-b-lg">
