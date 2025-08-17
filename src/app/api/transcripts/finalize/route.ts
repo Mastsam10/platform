@@ -2,6 +2,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { cloudflareStream } from '@/lib/cloudflare'
 
 function parseVtt(vtt: string) {
   // Very basic VTT parser: split by caption blocks
@@ -58,33 +59,41 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 Finalizing transcript for video ${videoId}, playback ${playbackId}`)
 
-    // 1) Try to fetch the VTT from Cloudflare public path
-    const vttUrl = `https://videodelivery.net/${playbackId}/captions/${lang}.vtt`
-
-    console.log(`🔗 Fetching VTT from: ${vttUrl}`)
-    const res = await fetch(vttUrl)
+    // 1) Check if captions are ready using the API
+    const hasCaptions = await cloudflareStream.hasCaptions(playbackId)
     
-    if (!res.ok) {
-      console.log(`❌ VTT not ready yet: ${res.status} ${res.statusText}`)
+    if (!hasCaptions) {
+      console.log(`❌ Captions not ready yet for video ${videoId}`)
       return NextResponse.json({ 
         ok: false, 
-        error: `VTT fetch ${res.status}`,
+        error: 'Captions not ready',
         notReady: true
       }, { status: 404 })
     }
 
-    const vttText = await res.text()
+    // 2) Fetch VTT content using the API
+    const vttText = await cloudflareStream.getCaptionVtt(playbackId, lang)
+    
+    if (!vttText) {
+      console.log(`❌ Failed to fetch VTT content for video ${videoId}`)
+      return NextResponse.json({ 
+        ok: false, 
+        error: 'Failed to fetch VTT content',
+        notReady: true
+      }, { status: 404 })
+    }
+
     console.log(`✅ VTT fetched successfully (${vttText.length} chars)`)
     
     const lines = parseVtt(vttText)
     console.log(`📄 Parsed ${lines.length} transcript lines`)
 
-    // 2) Store lines + raw_vtt; mark video.has_captions = true
+    // 3) Store lines + raw_vtt; mark video.has_captions = true
     const { error: transcriptError } = await supabaseAdmin
       .from('transcripts')
       .update({
         status: 'ready',
-        vtt_url: vttUrl,
+        vtt_url: `https://videodelivery.net/${playbackId}/captions/${lang}.vtt`,
         raw_vtt: vttText,
         lines,
         updated_at: new Date().toISOString()

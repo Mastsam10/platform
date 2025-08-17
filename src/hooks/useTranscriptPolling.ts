@@ -18,15 +18,16 @@ export function useTranscriptPolling({
   playbackId,
   enabled = true,
   pollInterval = 15000, // 15 seconds
-  maxAttempts = 20 // 5 minutes total
+  maxAttempts = 10 // Reduced to 2.5 minutes total
 }: UseTranscriptPollingProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [transcript, setTranscript] = useState<TranscriptData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [attempts, setAttempts] = useState(0)
+  const [isPolling, setIsPolling] = useState(false)
 
   const finalizeTranscript = useCallback(async () => {
-    if (!enabled || !videoId || !playbackId) return
+    if (!enabled || !videoId || !playbackId || isPolling) return
 
     setIsLoading(true)
     setError(null)
@@ -71,25 +72,28 @@ export function useTranscriptPolling({
       setIsLoading(false)
       return true // Stop polling on error
     }
-  }, [enabled, videoId, playbackId])
+  }, [enabled, videoId, playbackId, isPolling])
 
   useEffect(() => {
-    if (!enabled || !videoId || !playbackId) return
+    if (!enabled || !videoId || !playbackId || transcript || error) return
 
     let timeoutId: NodeJS.Timeout
+    setIsPolling(true)
 
     const poll = async () => {
       const shouldStop = await finalizeTranscript()
       
       if (shouldStop || attempts >= maxAttempts) {
         if (attempts >= maxAttempts) {
-          setError('Transcript generation timed out')
+          setError('Transcript generation timed out after multiple attempts')
         }
+        setIsPolling(false)
         return
       }
 
-      // Schedule next poll
-      timeoutId = setTimeout(poll, pollInterval)
+      // Schedule next poll with exponential backoff
+      const backoffDelay = Math.min(pollInterval * Math.pow(1.5, attempts), 60000) // Max 60 seconds
+      timeoutId = setTimeout(poll, backoffDelay)
     }
 
     // Start polling
@@ -99,15 +103,17 @@ export function useTranscriptPolling({
       if (timeoutId) {
         clearTimeout(timeoutId)
       }
+      setIsPolling(false)
     }
-  }, [enabled, videoId, playbackId, finalizeTranscript, attempts, maxAttempts, pollInterval])
+  }, [enabled, videoId, playbackId, finalizeTranscript, attempts, maxAttempts, pollInterval, transcript, error])
 
   const retry = useCallback(() => {
     setAttempts(0)
     setError(null)
     setTranscript(null)
-    finalizeTranscript()
-  }, [finalizeTranscript])
+    setIsPolling(false)
+    // The useEffect will restart polling automatically
+  }, [])
 
   return {
     isLoading,
