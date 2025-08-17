@@ -139,15 +139,6 @@ export default function VideoList() {
                   <p>Duration: {Math.floor(video.duration_s / 60)}:{(video.duration_s % 60).toString().padStart(2, '0')}</p>
                 )}
               </div>
-              {/* Watch button for better UX */}
-              <div className="mt-4">
-                <Link 
-                  href={`/videos/${video.id}`}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors"
-                >
-                  Watch Video
-                </Link>
-              </div>
             </div>
             <div>
               {video.playback_id ? (
