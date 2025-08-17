@@ -38,9 +38,9 @@ export default function VideoList() {
       const data = await response.json()
       const videosWithCaptions = data.videos || []
       
-      // Check caption status for videos that are ready but don't have has_captions set
+      // Check caption status for all ready videos to detect newly available captions
       for (const video of videosWithCaptions) {
-        if (video.status === 'ready' && video.playback_id && !video.has_captions) {
+        if (video.status === 'ready' && video.playback_id) {
           try {
             const captionResponse = await fetch('/api/transcripts/check-status', {
               method: 'POST',
@@ -53,9 +53,10 @@ export default function VideoList() {
             
             if (captionResponse.ok) {
               const captionData = await captionResponse.json()
-              if (captionData.captionsReady) {
+              if (captionData.captionsReady && !video.has_captions) {
                 // Update the video object to show captions are available
                 video.has_captions = true
+                console.log(`✅ Captions detected for video ${video.title}`)
               }
             }
           } catch (error) {
