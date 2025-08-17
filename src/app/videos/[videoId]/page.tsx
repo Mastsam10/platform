@@ -11,6 +11,7 @@ interface Video {
   id: string
   title: string
   description?: string
+  status: 'draft' | 'ready'
   playback_id?: string
   has_captions?: boolean
   channels?: {
