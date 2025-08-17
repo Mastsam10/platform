@@ -27,6 +27,12 @@ export default function VideoWatchPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
+  // Transcript toggle state
+  const [showTranscript, setShowTranscript] = useState(false)
+  
+  // Video info expand state
+  const [expandedInfo, setExpandedInfo] = useState(false)
+  
   // Player control functions
   const [getCurrentTime, setGetCurrentTime] = useState<(() => number) | null>(null)
   const [seekTo, setSeekTo] = useState<((seconds: number) => void) | null>(null)
@@ -124,69 +130,129 @@ export default function VideoWatchPage() {
           )}
         </div>
 
-        {/* Video Player and Transcript */}
+        {/* Video Player and Layout */}
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Video Player */}
+          {/* Video Player and Info */}
           <div className="lg:col-span-2">
+            {/* Video Player */}
             {video.playback_id ? (
               <VideoPlayer
                 playbackId={video.playback_id}
                 title={video.title}
                 hasCaptions={video.has_captions}
                 onPlayerReady={handlePlayerReady}
-                className="w-full"
+                className="w-full mb-6"
               />
             ) : (
-              <div className="aspect-video bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+              <div className="aspect-video bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center mb-6">
                 <p className="text-gray-500 dark:text-gray-400">Video not ready</p>
               </div>
             )}
             
-            {/* Video Description */}
-            {video.description && (
-              <div className="mt-4 p-4 bg-white dark:bg-gray-800 rounded-lg">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Description</h3>
-                <p className="text-gray-600 dark:text-gray-300">{video.description}</p>
+            {/* Video Info Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              {/* Basic Info (Always Visible) */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {video.title}
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    {video.channels?.name}
+                    {video.channels?.denomination && ` • ${video.channels.denomination}`}
+                  </p>
+                </div>
+                
+                {/* Show Transcript Button */}
+                {video.has_captions && (
+                  <button
+                    onClick={() => setShowTranscript(!showTranscript)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors font-medium"
+                  >
+                    {showTranscript ? 'Hide Transcript' : 'Show Transcript'}
+                  </button>
+                )}
               </div>
-            )}
+
+              {/* Expandable Description */}
+              {video.description && (
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-gray-900 dark:text-white">Description</h4>
+                    <button
+                      onClick={() => setExpandedInfo(!expandedInfo)}
+                      className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+                    >
+                      {expandedInfo ? 'Show less' : 'Show more'}
+                    </button>
+                  </div>
+                  
+                  <div className={`text-gray-600 dark:text-gray-300 ${expandedInfo ? '' : 'line-clamp-2'}`}>
+                    {video.description}
+                  </div>
+                </div>
+              )}
+
+              {/* Additional Info (when expanded) */}
+              {expandedInfo && (
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                      <span className="ml-2 text-gray-900 dark:text-white">
+                        {video.status === 'ready' ? 'Ready' : 'Processing'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Captions:</span>
+                      <span className="ml-2 text-gray-900 dark:text-white">
+                        {video.has_captions ? 'Available' : 'Not available'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Transcript Panel */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-              Transcript
-            </h3>
-            
-            {transcriptLoading && (
-              <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                  Generating transcript...
+          {/* Transcript Panel (Hidden by default) */}
+          {showTranscript && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                Transcript
+              </h3>
+              
+              {transcriptLoading && (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    Generating transcript...
+                  </p>
+                </div>
+              )}
+
+              {transcriptError && (
+                <div className="text-red-600 dark:text-red-400 text-sm">
+                  Error: {transcriptError}
+                </div>
+              )}
+
+              {transcript && getCurrentTime && seekTo && (
+                <TranscriptPanel
+                  lines={transcript.lines}
+                  getCurrentTime={getCurrentTime}
+                  seekTo={seekTo}
+                  className="max-h-96"
+                />
+              )}
+
+              {!transcript && !transcriptLoading && !transcriptError && (
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  No transcript available yet
                 </p>
-              </div>
-            )}
-
-            {transcriptError && (
-              <div className="text-red-600 dark:text-red-400 text-sm">
-                Error: {transcriptError}
-              </div>
-            )}
-
-            {transcript && getCurrentTime && seekTo && (
-              <TranscriptPanel
-                lines={transcript.lines}
-                getCurrentTime={getCurrentTime}
-                seekTo={seekTo}
-                className="max-h-96"
-              />
-            )}
-
-            {!transcript && !transcriptLoading && !transcriptError && (
-              <p className="text-gray-500 dark:text-gray-400 text-sm">
-                No transcript available yet
-              </p>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
