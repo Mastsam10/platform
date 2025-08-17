@@ -164,8 +164,8 @@ export default function VideoWatchPage() {
                   </p>
                 </div>
                 
-                {/* Show Transcript Button - Always show if video is ready */}
-                {video.status === 'ready' && (
+                {/* Show Transcript Button - Only show when transcript is available */}
+                {video.has_captions && (
                   <button
                     onClick={() => setShowTranscript(!showTranscript)}
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors font-medium"
