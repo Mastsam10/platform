@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getSupabaseClient } from '@/lib/supabase'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -20,6 +20,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
     e.preventDefault()
     setLoading(true)
     setError('')
+
+    // Get the Supabase client dynamically
+    const supabase = getSupabaseClient()
 
     // Debug logging to see what environment variables the client receives
     console.log('🔍 Client env check:', {
