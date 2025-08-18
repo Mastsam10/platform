@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import SearchBar from './SearchBar'
 import DarkModeToggle from './DarkModeToggle'
+import AuthButton from './AuthButton'
 
 export default function Header() {
   return (
@@ -26,6 +27,7 @@ export default function Header() {
 
           {/* Right Side */}
           <div className="flex items-center space-x-4">
+            <AuthButton />
             <Link
               href="/channels/create"
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"

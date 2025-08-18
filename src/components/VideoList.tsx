@@ -133,7 +133,11 @@ export default function VideoList() {
                   </span>
                 </p>
                 {video.channels?.display_name && (
-                  <p>Channel: {video.channels.display_name}</p>
+                  <Link href={`/c/${video.channels.slug}`}>
+                    <p className="hover:text-blue-600 cursor-pointer transition-colors">
+                      Channel: {video.channels.display_name}
+                    </p>
+                  </Link>
                 )}
                 {video.channels?.denomination && (
                   <p>Denomination: {video.channels.denomination}</p>

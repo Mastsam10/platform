@@ -141,10 +141,12 @@ export default function VideoWatchPage() {
             {video.title}
           </h1>
           {video.channels?.display_name && (
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              {video.channels.display_name}
-              {video.channels.denomination && ` • ${video.channels.denomination}`}
-            </p>
+            <Link href={`/c/${video.channels.slug}`}>
+              <p className="text-gray-600 dark:text-gray-400 mt-2 hover:text-blue-600 cursor-pointer transition-colors">
+                {video.channels.display_name}
+                {video.channels.denomination && ` • ${video.channels.denomination}`}
+              </p>
+            </Link>
           )}
         </div>
 
@@ -175,10 +177,14 @@ export default function VideoWatchPage() {
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                     {video.title}
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm">
-                    {video.channels?.display_name}
-                    {video.channels?.denomination && ` • ${video.channels.denomination}`}
-                  </p>
+                  {video.channels && (
+                    <Link href={`/c/${video.channels.slug}`}>
+                      <p className="text-gray-600 dark:text-gray-400 text-sm hover:text-blue-600 cursor-pointer transition-colors">
+                        {video.channels.display_name}
+                        {video.channels.denomination && ` • ${video.channels.denomination}`}
+                      </p>
+                    </Link>
+                  )}
                 </div>
                 
                 {/* Show Transcript Button - Only show when transcript is available */}
