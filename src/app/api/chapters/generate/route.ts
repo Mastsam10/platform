@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract plain text from transcript lines
-    const transcript = extractTextFromTranscriptLines(transcriptData.lines || [])
+    const lines = transcriptData.lines || []
+    const transcript = extractTextFromTranscriptLines(Array.isArray(lines) ? lines : [])
     
     // Generate chapters
     const chapters = generateChapters(transcript)
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
 }
 
 function extractTextFromTranscriptLines(lines: Array<{ startMs: number; endMs: number; text: string }>): string {
-  if (!lines || lines.length === 0) return ''
+  if (!Array.isArray(lines) || lines.length === 0) return ''
   
   // Extract just the text from transcript lines
   return lines
