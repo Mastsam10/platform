@@ -21,6 +21,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
     setLoading(true)
     setError('')
 
+    // Debug logging to see what environment variables the client receives
+    console.log('🔍 Client env check:', {
+      url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      anonKeyStart: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 20),
+      anonKeyLength: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length,
+      nodeEnv: process.env.NODE_ENV
+    })
+
     // Debug logging
     console.log('🔍 AuthModal: Starting auth process')
 
