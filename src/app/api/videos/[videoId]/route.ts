@@ -44,8 +44,10 @@ export async function GET(
         has_captions,
         created_at,
         channels (
-          name,
-          denomination
+          display_name,
+          denomination,
+          type,
+          slug
         )
       `)
       .eq('id', videoId)
