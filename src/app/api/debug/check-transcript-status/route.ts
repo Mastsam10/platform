@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-interface Video {
-  id: string
-  title: string
-  status: string
-  playback_id?: string
-  asset_id?: string
-  srt_url?: string
-  duration_s?: number
-  aspect_ratio?: string
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -36,14 +25,11 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
 
-    // Type assertion to ensure video has the correct type
-    const typedVideo = video as Video
-
     // Get video tags (chapters) for this video
     const { data: videoTags, error: tagError } = await supabase
       .from('video_tags')
       .select('*')
-      .eq('video_id', typedVideo.id)
+      .eq('video_id', video.id as string)
       .order('start_s', { ascending: true })
 
     // Check environment variables
@@ -53,35 +39,35 @@ export async function POST(request: NextRequest) {
     // Analyze the video status
     const analysis = {
       video: {
-        id: typedVideo.id,
-        title: typedVideo.title,
-        status: typedVideo.status,
-        playback_id: typedVideo.playback_id,
-        asset_id: typedVideo.asset_id,
-        srt_url: typedVideo.srt_url,
-        duration_s: typedVideo.duration_s,
-        aspect_ratio: typedVideo.aspect_ratio
+        id: video.id as string,
+        title: video.title as string,
+        status: video.status as string,
+        playback_id: video.playback_id as string | undefined,
+        asset_id: video.asset_id as string | undefined,
+        srt_url: video.srt_url as string | undefined,
+        duration_s: video.duration_s as number | undefined,
+        aspect_ratio: video.aspect_ratio as string | undefined
       },
       transcriptStatus: {
-        hasSrtUrl: !!typedVideo.srt_url,
-        srtUrlLength: typedVideo.srt_url ? typedVideo.srt_url.length : 0,
+        hasSrtUrl: !!(video.srt_url as string | undefined),
+        srtUrlLength: (video.srt_url as string | undefined) ? (video.srt_url as string).length : 0,
         hasDeepgramKey,
         hasSiteUrl
       },
       chaptersStatus: {
-        hasVideoTags: !!videoTags && videoTags.length > 0,
-        videoTagsCount: videoTags ? videoTags.length : 0,
-        videoTags: videoTags || []
+        hasVideoTags: !!videoTags && Array.isArray(videoTags) && videoTags.length > 0,
+        videoTagsCount: Array.isArray(videoTags) ? videoTags.length : 0,
+        videoTags: Array.isArray(videoTags) ? videoTags : []
       },
       potentialIssues: [] as string[]
     }
 
     // Identify potential issues
-    if (!typedVideo.playback_id) {
+    if (!(video.playback_id as string | undefined)) {
       analysis.potentialIssues.push('No playback_id - video may not be ready')
     }
     
-    if (!typedVideo.srt_url) {
+    if (!(video.srt_url as string | undefined)) {
       analysis.potentialIssues.push('No SRT URL - transcript generation may have failed')
     }
     
@@ -93,8 +79,8 @@ export async function POST(request: NextRequest) {
       analysis.potentialIssues.push('No NEXT_PUBLIC_SITE_URL configured')
     }
     
-    if (typedVideo.status !== 'ready') {
-      analysis.potentialIssues.push(`Video status is '${typedVideo.status}' instead of 'ready'`)
+    if ((video.status as string) !== 'ready') {
+      analysis.potentialIssues.push(`Video status is '${video.status as string}' instead of 'ready'`)
     }
 
     return NextResponse.json({
