@@ -2,6 +2,74 @@
 
 This document records solutions to common issues encountered during development and deployment.
 
+## CRITICAL DISCOVERY: AuthButton Not Visible - Header Component Not Rendered
+
+### Problem: AuthButton component not visible despite being imported and styled
+
+**Discovery Date:** August 17, 2024
+
+**Symptoms:**
+- AuthButton component had debugging styles (red background, yellow border, fire emojis)
+- AuthButton was properly imported in Header component
+- Header component code looked correct
+- **But AuthButton was completely invisible on the website**
+- No debugging borders or red button visible
+- Console showed no "AuthButton component is rendering!" log
+
+**Root Cause:**
+The Header component (which contains the AuthButton) was **not being rendered anywhere in the application**. The layout.tsx file was missing the Header component import and usage.
+
+**Evidence:**
+- `src/app/layout.tsx` only had `<DarkModeToggle />` in the header area
+- `src/app/page.tsx` had its own custom header with just title and upload button
+- Header component existed but was never actually used in the component tree
+- AuthButton debugging styles were correct but component wasn't mounting
+
+**The Fix:**
+1. **Added Header to layout.tsx:**
+   ```typescript
+   // In src/app/layout.tsx
+   import Header from '@/components/Header'
+   
+   // In the JSX
+   <div className="relative min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+     <Header />  // ← Added this line
+     {children}
+   </div>
+   ```
+
+2. **Removed duplicate header from main page:**
+   ```typescript
+   // In src/app/page.tsx - removed custom header, kept only content
+   <div className="flex justify-between items-center mb-8">
+     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Recent Videos</h1>
+     <button onClick={() => setShowUpload(!showUpload)}>Upload Video</button>
+   </div>
+   ```
+
+**Why This Works:**
+- Header component now renders on every page via layout.tsx
+- AuthButton is properly mounted and visible
+- No duplicate headers or conflicting layouts
+- Consistent navigation across all pages
+
+**Key Insights:**
+- **Component visibility issues often mean the component isn't rendering at all**
+- **Check the component tree first** - ensure components are actually being used
+- **Layout.tsx is the right place for global navigation** - not individual pages
+- **Debugging styles only work if the component mounts** - invisible components can't show debugging styles
+
+**Prevention:**
+- Always verify components are actually being rendered in the component tree
+- Use layout.tsx for global navigation components
+- Add console.log statements to confirm component mounting
+- Check for duplicate or conflicting component usage
+- Test component visibility with extreme debugging styles
+
+**CRITICAL: When a component is completely invisible despite correct styling, check if it's actually being rendered in the component tree first.**
+
+---
+
 ## Complete System Cleanup Process
 
 ### Problem: Need to delete all test videos from Supabase, website, and Cloudflare Stream
