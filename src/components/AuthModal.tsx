@@ -21,25 +21,36 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
     setLoading(true)
     setError('')
 
+    // Debug logging
+    console.log('🔍 AuthModal: Starting auth process')
+    console.log('🔍 AuthModal: Supabase URL:', supabase.supabaseUrl)
+    console.log('🔍 AuthModal: Has anon key:', !!supabase.supabaseKey)
+    console.log('🔍 AuthModal: Key length:', supabase.supabaseKey?.length)
+
     try {
       if (isSignUp) {
+        console.log('🔍 AuthModal: Attempting sign up')
         const { error } = await supabase.auth.signUp({
           email,
           password,
         })
         if (error) throw error
+        console.log('🔍 AuthModal: Sign up successful')
         // Show success message for email confirmation
         alert('Check your email for the confirmation link!')
       } else {
+        console.log('🔍 AuthModal: Attempting sign in')
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
         if (error) throw error
+        console.log('🔍 AuthModal: Sign in successful')
         onAuthSuccess()
         onClose()
       }
     } catch (error: any) {
+      console.error('🔍 AuthModal: Auth error:', error)
       setError(error.message)
     } finally {
       setLoading(false)
