@@ -10,10 +10,8 @@ export async function GET(request: NextRequest) {
       success: true,
       hasSession: !!data.session,
       error: error?.message || null,
-      supabaseUrl: supabase.supabaseUrl,
-      // Don't expose the actual keys, just check if they're set
-      hasAnonKey: !!supabase.supabaseKey,
-      keyLength: supabase.supabaseKey?.length || 0
+      // Don't expose protected properties
+      clientWorking: true
     })
   } catch (error: any) {
     return NextResponse.json({
