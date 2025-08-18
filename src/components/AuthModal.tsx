@@ -23,9 +23,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
 
     // Debug logging
     console.log('🔍 AuthModal: Starting auth process')
-    console.log('🔍 AuthModal: Supabase URL:', supabase.supabaseUrl)
-    console.log('🔍 AuthModal: Has anon key:', !!supabase.supabaseKey)
-    console.log('🔍 AuthModal: Key length:', supabase.supabaseKey?.length)
 
     try {
       if (isSignUp) {
