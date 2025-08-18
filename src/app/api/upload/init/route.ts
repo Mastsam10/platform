@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
         const { data: newChannel, error: channelError } = await supabaseAdmin
           .from('channels')
           .insert({
-            type: 'creator',
-            name: 'Default Channel',
+            type: 'individual',
+            display_name: 'Default Channel',
             slug: 'default-channel',
             denomination: 'Christian'
           })

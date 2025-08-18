@@ -11,8 +11,10 @@ interface SearchResult {
   playback_id?: string
   has_captions?: boolean
   channels?: {
-    name: string
+    display_name: string
     denomination?: string
+    type: string
+    slug: string
   }
   search_rank: number
   matched_text?: string
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
         playback_id,
         has_captions,
         created_at,
-        channels (name, denomination)
+        channels (display_name, denomination, type, slug)
       `)
       .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
       .eq('status', 'ready')
@@ -104,8 +106,10 @@ export async function GET(request: NextRequest) {
           playback_id: video.playback_id,
           has_captions: video.has_captions,
           channels: video.channels ? {
-            name: video.channels.name,
-            denomination: video.channels.denomination
+            display_name: video.channels.display_name,
+            denomination: video.channels.denomination,
+            type: video.channels.type,
+            slug: video.channels.slug
           } : undefined,
           search_rank: 1.0 // Simple ranking for now
         }

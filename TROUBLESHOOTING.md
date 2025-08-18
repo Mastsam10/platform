@@ -2,6 +2,193 @@
 
 This document records solutions to common issues encountered during development and deployment.
 
+## Complete System Cleanup Process
+
+### Problem: Need to delete all test videos from Supabase, website, and Cloudflare Stream
+
+**Discovery Date:** August 17, 2024
+
+**When to Use:**
+- After extensive testing with multiple videos
+- When switching between different video hosting services
+- Before deploying to production
+- When cleaning up development environment
+- When troubleshooting video processing issues
+
+**Complete Cleanup Process:**
+
+### Step 1: Clean Supabase Database
+```bash
+# Clean all test data from database (videos, transcripts, video_tags)
+curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-test-data
+```
+
+**What this does:**
+- Deletes all videos from `videos` table
+- Automatically deletes related `transcripts` (cascade delete)
+- Automatically deletes related `video_tags` (cascade delete)
+- Leaves database schema intact
+- Returns count of deleted videos
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Successfully deleted 9 videos from database",
+  "deletedCount": 9,
+  "remainingVideos": 0
+}
+```
+
+### Step 2: Clean Cloudflare Stream
+```bash
+# Delete ALL videos from Cloudflare Stream (not just those in database)
+curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-all-cloudflare
+```
+
+**What this does:**
+- Lists ALL videos from Cloudflare Stream API
+- Deletes each video using Cloudflare Stream DELETE API
+- Handles videos that may not be in our database
+- Uses proper Cloudflare Stream authentication
+- Returns detailed results for each video
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Successfully processed 78 videos",
+  "deletedCount": 78,
+  "cloudflareResults": [
+    {
+      "uid": "video_id_1",
+      "name": "Video Name",
+      "status": "ready",
+      "cloudflare": "deleted"
+    }
+  ],
+  "remainingVideos": 0,
+  "summary": {
+    "total": 78,
+    "deleted": 78,
+    "failed": 0,
+    "errors": 0
+  }
+}
+```
+
+### Step 3: Verify Cleanup
+```bash
+# Check database status
+curl https://platform-gamma-flax.vercel.app/api/debug/list-videos
+
+# Check Cloudflare Stream status
+curl https://platform-gamma-flax.vercel.app/api/debug/test-cloudflare-auth
+```
+
+**Expected Results:**
+- Database: `{"videos":[],"count":0}`
+- Cloudflare: `{"cloudflareVideos":[],"videoCount":0}`
+
+### Step 4: Website Cleanup (Automatic)
+The website automatically reflects the database state, so once the database is clean:
+- Video list page will show no videos
+- Upload functionality remains available
+- All test videos removed from UI
+
+### Complete One-Command Cleanup
+For future reference, here's the complete cleanup sequence:
+
+```bash
+# 1. Clean database
+curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-test-data
+
+# 2. Clean Cloudflare Stream
+curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-all-cloudflare
+
+# 3. Verify both are clean
+curl https://platform-gamma-flax.vercel.app/api/debug/list-videos
+curl https://platform-gamma-flax.vercel.app/api/debug/test-cloudflare-auth
+```
+
+### Why This Process Works
+
+**Database Cleanup:**
+- Uses Supabase cascade deletes to remove all related data
+- Handles foreign key relationships automatically
+- Leaves schema intact for future use
+- Fast and reliable
+
+**Cloudflare Stream Cleanup:**
+- Uses official Cloudflare Stream API
+- Handles videos not in our database (orphaned videos)
+- Proper authentication with API tokens
+- Comprehensive deletion of all video assets
+
+**Website Cleanup:**
+- Automatic - website reads from database
+- No manual intervention needed
+- UI updates immediately after database cleanup
+
+### Key Insights
+
+1. **Always clean both systems** - Database and Cloudflare Stream are separate
+2. **Cloudflare may have more videos** - Orphaned videos from failed uploads
+3. **Use the comprehensive cleanup** - `cleanup-all-cloudflare` handles all videos
+4. **Verify with both endpoints** - Check both database and Cloudflare status
+5. **Website is automatic** - No separate website cleanup needed
+
+### Prevention
+
+- **Clean up regularly** - Don't let test videos accumulate
+- **Use descriptive titles** - Makes it easier to identify test videos
+- **Monitor video counts** - Check both systems periodically
+- **Document cleanup process** - Reference this section for future cleanups
+
+### Troubleshooting Cleanup Issues
+
+**If database cleanup fails:**
+```bash
+# Check database connection
+curl https://platform-gamma-flax.vercel.app/api/debug/test-db-fingerprint
+```
+
+**If Cloudflare cleanup fails:**
+```bash
+# Check Cloudflare authentication
+curl https://platform-gamma-flax.vercel.app/api/debug/test-cloudflare-auth
+```
+
+**If videos still appear:**
+- Wait 5-10 minutes for Cloudflare dashboard to refresh
+- Check the correct Cloudflare account/zone
+- Verify you're looking at the Stream section, not other services
+
+### CRITICAL: Complete Cleanup Reference
+
+**For future cleanups, simply run these commands in order:**
+
+```bash
+# Complete system cleanup
+curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-test-data
+curl -X POST https://platform-gamma-flax.vercel.app/api/debug/cleanup-all-cloudflare
+curl https://platform-gamma-flax.vercel.app/api/debug/list-videos
+curl https://platform-gamma-flax.vercel.app/api/debug/test-cloudflare-auth
+```
+
+**This will completely clean:**
+- ✅ Supabase database (videos, transcripts, video_tags)
+- ✅ Cloudflare Stream (all video assets)
+- ✅ Website (automatic - reflects database state)
+
+**Expected final state:**
+- Database: 0 videos
+- Cloudflare Stream: 0 videos  
+- Website: No videos displayed
+- Upload functionality: Still available
+
+---
+
 ## Video Status Inconsistency Issues
 
 ### Problem: Video shows "Ready" but player displays "Video not ready"

@@ -11,8 +11,10 @@ interface SearchResult {
   playback_id?: string
   has_captions?: boolean
   channels?: {
-    name: string
+    display_name: string
     denomination?: string
+    type: string
+    slug: string
   }
   search_rank: number
   matched_text?: string
@@ -189,7 +191,7 @@ export default function SearchBar() {
                       {/* Channel Info */}
                       {result.channels && (
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                          {result.channels.name}
+                          {result.channels.display_name}
                           {result.channels.denomination && ` • ${result.channels.denomination}`}
                         </p>
                       )}

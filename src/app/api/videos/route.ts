@@ -21,8 +21,10 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         channels (
-          name,
-          denomination
+          display_name,
+          denomination,
+          type,
+          slug
         )
       `)
       .order('created_at', { ascending: false })

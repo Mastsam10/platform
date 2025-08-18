@@ -15,8 +15,10 @@ interface Video {
   playback_id?: string
   has_captions?: boolean
   channels?: {
-    name: string
+    display_name: string
     denomination?: string
+    type: string
+    slug: string
   }
 }
 
@@ -138,9 +140,9 @@ export default function VideoWatchPage() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             {video.title}
           </h1>
-          {video.channels?.name && (
+          {video.channels?.display_name && (
             <p className="text-gray-600 dark:text-gray-400 mt-2">
-              {video.channels.name}
+              {video.channels.display_name}
               {video.channels.denomination && ` • ${video.channels.denomination}`}
             </p>
           )}
@@ -174,7 +176,7 @@ export default function VideoWatchPage() {
                     {video.title}
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400 text-sm">
-                    {video.channels?.name}
+                    {video.channels?.display_name}
                     {video.channels?.denomination && ` • ${video.channels.denomination}`}
                   </p>
                 </div>

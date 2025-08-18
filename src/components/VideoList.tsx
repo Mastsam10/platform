@@ -15,8 +15,10 @@ interface Video {
   published_at?: string
   has_captions?: boolean // Whether video has captions available
   channels?: {
-    name: string
+    display_name: string
     denomination?: string
+    type: string
+    slug: string
   }
 }
 
@@ -130,8 +132,8 @@ export default function VideoList() {
                     {video.status === 'ready' ? 'Ready' : 'Processing'}
                   </span>
                 </p>
-                {video.channels?.name && (
-                  <p>Channel: {video.channels.name}</p>
+                {video.channels?.display_name && (
+                  <p>Channel: {video.channels.display_name}</p>
                 )}
                 {video.channels?.denomination && (
                   <p>Denomination: {video.channels.denomination}</p>

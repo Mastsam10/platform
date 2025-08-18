@@ -56,3 +56,4 @@ COMMENT ON COLUMN videos.search_vector IS 'Full-text search vector for video tit
 COMMENT ON COLUMN transcripts.search_vector IS 'Full-text search vector for transcript content';
 COMMENT ON INDEX videos_search_vector_idx IS 'GIN index for fast full-text search on videos';
 COMMENT ON INDEX transcripts_search_vector_idx IS 'GIN index for fast full-text search on transcripts';
+
