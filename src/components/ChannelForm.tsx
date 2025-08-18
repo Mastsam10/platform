@@ -126,13 +126,13 @@ export default function ChannelForm({
     }
 
     if (formData.type === 'church') {
-      if (!formData.denomination.trim()) {
+      if (!formData.denomination?.trim()) {
         newErrors.denomination = 'Denomination is required for church channels'
       }
-      if (!formData.city.trim()) {
+      if (!formData.city?.trim()) {
         newErrors.city = 'City is required for church channels'
       }
-      if (!formData.state.trim()) {
+      if (!formData.state?.trim()) {
         newErrors.state = 'State is required for church channels'
       }
     }
