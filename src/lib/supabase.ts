@@ -1,4 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
+// Re-export the new SSR-based clients for backward compatibility
+export { createClient as createBrowserClient } from './supabase/client'
+export { createClient as createServerClient } from './supabase/server'
+
+// Legacy export for backward compatibility - use the new client functions instead
+import { createBrowserClient } from '@supabase/ssr'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -7,7 +12,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Legacy client - deprecated, use createClient() from ./supabase/client instead
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
 
 // Database types
 export interface User {

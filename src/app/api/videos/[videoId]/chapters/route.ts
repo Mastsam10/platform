@@ -1,26 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/server'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ videoId: string }> }
+  { params }: { params: { videoId: string } }
 ) {
-  const { videoId } = await params
   try {
-
+    const { videoId } = params
+    
     if (!videoId) {
-      return NextResponse.json(
-        { error: 'Video ID is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Video ID is required' }, { status: 400 })
     }
 
-    // Fetch video tags (chapters) for this video
+    const supabase = await createClient()
+
     const { data: chapters, error } = await supabase
       .from('video_tags')
       .select('*')
       .eq('video_id', videoId)
-      .in('type', ['passage', 'topic'])
+      .eq('type', 'passage')
       .order('start_s', { ascending: true })
 
     if (error) {
@@ -31,9 +32,7 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({
-      chapters: chapters || []
-    })
+    return NextResponse.json({ chapters })
 
   } catch (error) {
     console.error('Chapters API error:', error)

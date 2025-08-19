@@ -1,103 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/server'
 
-export async function POST(request: NextRequest) {
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { videoTitle } = body
+    const supabase = await createClient()
 
-    if (!videoTitle) {
-      return NextResponse.json({ 
-        error: 'Missing videoTitle' 
-      }, { status: 400 })
-    }
-
-    // Find video by title
-    const { data: video, error: videoError } = await supabase
+    // Get all videos with their transcript status
+    const { data: videos, error } = await supabase
       .from('videos')
-      .select('*')
-      .eq('title', videoTitle)
-      .single()
+      .select(`
+        id,
+        title,
+        status,
+        playback_id,
+        has_captions,
+        transcripts (
+          id,
+          status,
+          lang,
+          lines
+        )
+      `)
+      .order('created_at', { ascending: false })
 
-    if (videoError || !video) {
-      return NextResponse.json({ 
-        error: `Video not found: ${videoTitle}` 
-      }, { status: 404 })
+    if (error) {
+      console.error('Database error:', error)
+      return NextResponse.json(
+        { error: 'Failed to fetch videos' },
+        { status: 500 }
+      )
     }
 
-    // Get video tags (chapters) for this video
-    const { data: videoTags, error: tagError } = await supabase
-      .from('video_tags')
-      .select('*')
-      .eq('video_id', video.id as string)
-      .order('start_s', { ascending: true })
-
-    // Check environment variables
-    const hasDeepgramKey = !!process.env.DEEPGRAM_API_KEY
-    const hasSiteUrl = !!process.env.NEXT_PUBLIC_SITE_URL
-
-    // Analyze the video status
-    const analysis = {
-      video: {
+    // Process each video to check transcript status
+    const processedVideos = videos?.map((video: any) => {
+      const transcript = video.transcripts?.[0] || null
+      const hasTranscript = transcript && transcript.status === 'ready'
+      const hasLines = transcript && Array.isArray(transcript.lines) && transcript.lines.length > 0
+      
+      return {
         id: video.id as string,
         title: video.title as string,
         status: video.status as string,
-        playback_id: video.playback_id as string | undefined,
-        asset_id: video.asset_id as string | undefined,
-        srt_url: video.srt_url as string | undefined,
-        duration_s: video.duration_s as number | undefined,
-        aspect_ratio: video.aspect_ratio as string | undefined
-      },
-      transcriptStatus: {
-        hasSrtUrl: !!(video.srt_url as string | undefined),
-        srtUrlLength: (video.srt_url as string | undefined) ? (video.srt_url as string).length : 0,
-        hasDeepgramKey,
-        hasSiteUrl
-      },
-      chaptersStatus: {
-        hasVideoTags: !!videoTags && Array.isArray(videoTags) && videoTags.length > 0,
-        videoTagsCount: Array.isArray(videoTags) ? videoTags.length : 0,
-        videoTags: Array.isArray(videoTags) ? videoTags : []
-      },
-      potentialIssues: [] as string[]
-    }
-
-    // Identify potential issues
-    if (!(video.playback_id as string | undefined)) {
-      analysis.potentialIssues.push('No playback_id - video may not be ready')
-    }
-    
-    if (!(video.srt_url as string | undefined)) {
-      analysis.potentialIssues.push('No SRT URL - transcript generation may have failed')
-    }
-    
-    if (!hasDeepgramKey) {
-      analysis.potentialIssues.push('No Deepgram API key configured')
-    }
-    
-    if (!hasSiteUrl) {
-      analysis.potentialIssues.push('No NEXT_PUBLIC_SITE_URL configured')
-    }
-    
-    if ((video.status as string) !== 'ready') {
-      analysis.potentialIssues.push(`Video status is '${video.status as string}' instead of 'ready'`)
-    }
+        playback_id: video.playback_id as string,
+        has_captions: video.has_captions as boolean,
+        transcript_status: transcript?.status || 'none',
+        has_transcript: hasTranscript,
+        has_lines: hasLines,
+        line_count: transcript?.lines?.length || 0
+      }
+    }) || []
 
     return NextResponse.json({
-      success: true,
-      analysis,
-      recommendations: analysis.potentialIssues.length > 0 ? [
-        'Check Vercel logs for webhook processing errors',
-        'Verify Deepgram API key is set in environment variables',
-        'Ensure video has completed processing in Mux',
-        'Manually trigger transcript generation if needed'
-      ] : ['Video appears to be properly configured']
+      videos: processedVideos,
+      total: processedVideos.length,
+      with_captions: processedVideos.filter(v => v.has_captions).length,
+      with_transcripts: processedVideos.filter(v => v.has_transcript).length,
+      with_lines: processedVideos.filter(v => v.has_lines).length
     })
 
   } catch (error) {
-    console.error('Check transcript status error:', error)
-    return NextResponse.json({ 
-      error: 'Internal server error' 
-    }, { status: 500 })
+    console.error('Transcript status check error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }

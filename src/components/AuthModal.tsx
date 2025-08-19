@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -33,6 +33,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
     console.log('🔍 AuthModal: Starting auth process')
 
     try {
+      const supabase = createClient()
+      
       if (isSignUp) {
         console.log('🔍 AuthModal: Attempting sign up')
         const { error } = await supabase.auth.signUp({
@@ -109,15 +111,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
           </div>
 
           {error && (
-            <div className="text-red-600 dark:text-red-400 text-sm">
-              {error}
-            </div>
+            <div className="text-red-500 text-sm">{error}</div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2 px-4 rounded-md transition-colors"
           >
             {loading ? 'Loading...' : (isSignUp ? 'Create Account' : 'Sign In')}
           </button>
@@ -126,7 +126,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
         <div className="mt-4 text-center">
           <button
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+            className="text-blue-600 hover:text-blue-700 text-sm"
           >
             {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
           </button>
