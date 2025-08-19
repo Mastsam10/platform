@@ -127,15 +127,15 @@ export async function POST(request: NextRequest) {
 
       console.log(`✅ Found video: ${video.id} - "${video.title}"`)
 
-      // Update video status to ready and set playback_id
+      // Update video with playback_id and status
       const { error: updateError } = await supabaseAdmin
         .from('videos')
         .update({
+          playback_id: uid,
           status: 'ready',
-          playback_id: uid, // Cloudflare UID serves as playback_id
           updated_at: new Date().toISOString()
         })
-        .eq('id', video.id)
+        .eq('id', video.id as string)
 
       if (updateError) {
         console.error('❌ Failed to update video status:', updateError)
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
             status: 'error',
             updated_at: new Date().toISOString()
           })
-          .eq('video_id', video.id)
+          .eq('video_id', video.id as string)
           .eq('lang', 'en')
 
         // Don't fail the whole webhook - just log the error

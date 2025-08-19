@@ -65,14 +65,14 @@ export async function POST(request: NextRequest) {
     const { data: updatedVideo, error: updateError } = await supabase
       .from('videos')
       .select('*')
-      .eq('id', video.id)
+      .eq('id', video.id as string)
       .single()
 
     // Step 4: Get generated chapters
     const { data: chapters, error: chapterError } = await supabase
       .from('video_tags')
       .select('*')
-      .eq('video_id', video.id)
+      .eq('video_id', video.id as string)
       .order('start_s', { ascending: true })
 
     return NextResponse.json({

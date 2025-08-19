@@ -53,7 +53,7 @@ export async function GET() {
     const { data: verifyVideo } = await supabaseAdmin
       .from('videos')
       .select('id, title, status, asset_id')
-      .eq('id', video.id)
+      .eq('id', video.id as string)
       .single()
     
     console.log(`🔍 Verification - Video exists: ${verifyVideo ? 'YES' : 'NO'}`)
