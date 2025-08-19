@@ -1,31 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Create a function to get the Supabase client dynamically
-export function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables')
-  }
-  
-  return createClient(supabaseUrl, supabaseAnonKey)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables')
 }
 
-// For backward compatibility, create a default instance
-// This will be created when the module is first accessed
-let _supabase: ReturnType<typeof createClient> | null = null
-
-// Simple function to get the client instance
-export function getSupabase() {
-  if (!_supabase) {
-    _supabase = getSupabaseClient()
-  }
-  return _supabase!
-}
-
-// Export a default instance for backward compatibility
-export const supabase = getSupabase()
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Database types
 export interface User {
