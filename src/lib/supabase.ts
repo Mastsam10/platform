@@ -13,17 +13,19 @@ export function getSupabaseClient() {
 }
 
 // For backward compatibility, create a default instance
-// But this will be created when the module is first accessed
+// This will be created when the module is first accessed
 let _supabase: ReturnType<typeof createClient> | null = null
 
-export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
-  get(target, prop) {
-    if (!_supabase) {
-      _supabase = getSupabaseClient()
-    }
-    return _supabase[prop as keyof typeof _supabase]
+// Simple function to get the client instance
+export function getSupabase() {
+  if (!_supabase) {
+    _supabase = getSupabaseClient()
   }
-})
+  return _supabase!
+}
+
+// Export a default instance for backward compatibility
+export const supabase = getSupabase()
 
 // Database types
 export interface User {
